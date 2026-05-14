@@ -1,0 +1,22 @@
+{
+	"name": "@web/state",
+	"version": "1.0.0",
+
+	"type": "module",
+	"main": "dist/state.js",
+	"module": "dist/state.js",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"test": "playwright test"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.40.0",
+		"@rollup/plugin-terser": "^1.0.0",
+		"terser": "^5.47.1",
+		"vite": "^5.0.0"
+	}
+}

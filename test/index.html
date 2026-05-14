@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>State.js Modular Tests</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "@web/state": "../src/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="results">Running tests...</div>
+    <script type="module">
+        import { testCore } from './core.test.js';
+        import { testObserver } from './observer.test.js';
+        import { testDom } from './dom.test.js';
+        import { testComponent } from './component.test.js';
+
+        async function runAll() {
+            const results = document.getElementById('results');
+            try {
+                await testCore();
+                await testObserver();
+                await testDom();
+                await testComponent();
+                results.innerHTML = '<h1 style="color: green">All Tests Passed 🎉</h1>';
+                window.testStatus = 'passed';
+            } catch (e) {
+                console.error(e);
+                results.innerHTML = '<h1 style="color: red">Tests Failed: ' + e.message + '</h1>';
+                window.testStatus = 'failed';
+            }
+        }
+        runAll();
+    </script>
+</body>
+</html>
