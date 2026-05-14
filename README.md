@@ -45,22 +45,43 @@ State.js 是基于 Vanilla JS 的无编译数据驱动 UI 框架。依赖原生 
     * **带参格式**：`{#模板文本{变量名1}{变量名2} || 参数1 || 参数2#}`
     * **示例**：`{#欢迎 {name} 来到 {place} || 怼怼 || 地球#}`。翻译器将接收到 `rawText="欢迎 {name} 来到 {place}"` 和 `args={name: "怼怼", place: "地球"}`。
 
-## 二、 核心 API 指南
+## 二、 核心 API 导出清单
 
 ### 1. 状态管理 (Observer)
-* `NewState(defaults, getter, setter)`: 创建单层响应式 Proxy。
-* `Hash`: 映射 URL Hash 的响应式状态。
-* `LocalStorage`: 映射 LocalStorage 的响应式状态。
-* `<State>.__watch`: 状态代理对象可通过 `.__watch('属性', callback)` 监听状态属性的变化。
+*   **`NewState(defaults: Object, getter?: Function, setter?: Function): Proxy`**
+    *   创建单层响应式 Proxy。
+    *   `getter(key)`: 自定义读取逻辑。
+    *   `setter(key, value)`: 自定义写入逻辑。
+*   **`Hash: Proxy`**
+    *   映射 URL Hash 的响应式状态，修改属性将同步至 URL。
+*   **`LocalStorage: Proxy`**
+    *   映射 LocalStorage 的响应式状态，修改属性将持久化存储。
+*   **`<State>.__watch(key: string|null, callback: Function)`**
+    *   监听指定属性变化。若 `key` 为 `null`，则监听所有属性变化。
+*   **`<State>.__unwatch(key: string, callback: Function)`**
+    *   取消监听。
 
 ### 2. 系统 API (Global)
-* `SetTranslator(fn)`: 设置自定义翻译器函数 `fn(rawText, args)`。
-* `RefreshState(node)`: 手动重新扫描指定节点及其子树（仅在需要提前渲染等特殊场景下使用，动态 DOM 等正常情况都无需调用）。
+*   **`RefreshState(node: HTMLElement)`**
+    *   手动触发指定节点及其子树的指令扫描与绑定。
+*   **`SetTranslator(fn: (rawText: string, args: Object) => string)`**
+    *   设置全局 i18n 翻译器。
 
-### 3. 工具类 (Util)
-* `Util.makeDom(html)`: 将 HTML 字符串转为 DOM 节点。
-* `Util.copyFunction(to, from, ...names)`: 批量绑定并复制方法。
-* `Util.safeJson(str)`: 安全解析 JSON。
+### 3. 组件系统 (Component)
+*   **`Component.register(name: string, setupFunc: Function, template?: HTMLElement)`**
+    *   注册自定义组件。
+    *   `setupFunc(container)`: 组件逻辑初始化入口。
+    *   `template`: 组件的 DOM 模板。
+
+### 4. 工具类 (Util)
+*   **`Util.makeDom(html: string): HTMLElement`**: HTML 字符串转 DOM。
+*   **`Util.copyFunction(to: Object, from: Object, ...names: string[])`**: 批量绑定方法。
+*   **`Util.safeJson(str: string): any`**: 安全解析 JSON。
+
+### 5. DOM 查询
+*   **`$(selector: string, context?: HTMLElement): HTMLElement`**: querySelector 封装。
+*   **`$$(selector: string, context?: HTMLElement): NodeList`**: querySelectorAll 封装。
+
 
 ## 三、 自定义组件开发约束 (SOP)
 

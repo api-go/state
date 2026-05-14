@@ -31,10 +31,14 @@ export const Component = {
 };
 
 export function _mergeNode(from, to, scanObj, exists = {}) {
-    Array.from(from.attributes).forEach(attr => attr.name !== 'class' && to.setAttribute(attr.name, attr.value));
-    to.classList.add(...from.classList);
+    if (from.attributes) {
+        Array.from(from.attributes).forEach(attr => attr.name !== 'class' && to.setAttribute(attr.name, attr.value));
+    }
+    if (from.classList) {
+        to.classList.add(...from.classList);
+    }
     Array.from(from.childNodes).forEach(child => to.appendChild(child));
-    if (Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
+    if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
 
 export function _makeComponent(name, node, scanObj, exists = {}) {
@@ -59,13 +63,24 @@ export function _makeComponent(name, node, scanObj, exists = {}) {
             _mergeNode(rootNode, node, scanObj, exists);
             $$(node, '[slot-id]').forEach(placeholder => {
                 const slotName = placeholder.getAttribute('slot-id');
-                if (slots[slotName]) {
+                const slotSource = slots[slotName];
+                if (slotSource) {
                     placeholder.removeAttribute('slot-id');
                     placeholder.innerHTML = '';
-                    _mergeNode(slots[slotName], placeholder, scanObj, exists);
+                    if (slotSource.tagName === 'TEMPLATE') {
+                        Array.from(slotSource.content.childNodes).forEach(child => placeholder.appendChild(child.cloneNode(true)));
+                    } else {
+                        _mergeNode(slotSource, placeholder, scanObj, exists);
+                    }
                 }
             });
         }
     }
-    if (componentFunc) componentFunc(node);
+    if (componentFunc) {
+        try {
+            componentFunc(node);
+        } catch (e) {
+            console.error('Error in component setupFunc for', name, e);
+        }
+    }
 }

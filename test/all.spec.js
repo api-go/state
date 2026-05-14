@@ -1,14 +1,23 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
 
 test('modular unit tests and benchmark', async ({ page }) => {
     page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
     await page.goto('http://localhost:8081/test/index.html');
     
-    // Wait for testStatus to be set
     await page.waitForFunction(() => window.testStatus !== undefined, { timeout: 10000 });
-    
     const status = await page.evaluate(() => window.testStatus);
     expect(status).toBe('passed');
+
+    // Read benchmarks from TEST.md
+    const testMd = fs.readFileSync(path.join(process.cwd(), 'TEST.md'), 'utf-8');
+    const getBench = (name) => {
+        const match = testMd.match(new RegExp(`\\*\\*${name}\\*\\*\\s*\\|\\s*([\\d.]+)`));
+        return match ? parseFloat(match[1]) : null;
+    };
+    const baseInitial = getBench('首次渲染 \\(1000 items\\)');
+    const baseUpdate = getBench('浅更新 \\(Shallow Update\\)');
 
     // Benchmark: Large list rendering
     const renderTime = await page.evaluate(async () => {
@@ -28,16 +37,27 @@ test('modular unit tests and benchmark', async ({ page }) => {
         return performance.now() - start;
     });
     console.log(`BENCHMARK: 1000 items initial render: ${renderTime.toFixed(2)}ms`);
+    if (baseInitial) expect(renderTime).toBeLessThan(baseInitial * 1.2);
 
     // Benchmark: Large list update
     const updateTime = await page.evaluate(async () => {
         const start = performance.now();
         window.state.benchItems[0].val = 'updated';
-        // Note: Shallow proxy requires reassignment or internal trigger if we modified a deep property.
-        // But here we modify benchItems[0], which is an object inside the array.
-        // Our current observer.js might not catch this if it's benchItems[0] = ...
         window.state.benchItems = [...window.state.benchItems]; 
         return performance.now() - start;
     });
     console.log(`BENCHMARK: 1000 items update (shallow): ${updateTime.toFixed(2)}ms`);
+    if (baseUpdate) expect(updateTime).toBeLessThan(baseUpdate * 1.2);
+
+    // Extreme Data Test
+    await page.evaluate(async () => {
+        const { RefreshState } = await import('@web/state');
+        document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
+        window.state.extreme = null;
+        RefreshState(document.getElementById('extreme'));
+        window.state.extreme = undefined;
+        window.state.extreme = { a: 1 };
+        window.state.extreme = [1, 2];
+        window.state.extreme = "not iterable";
+    });
 });

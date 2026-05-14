@@ -2,6 +2,8 @@ var _a;
 let _activeBinding = null;
 let _noWriteBack = null;
 let _updateBindingFn = null;
+let _updateDepth = 0;
+const MAX_UPDATE_DEPTH = 100;
 function setActiveBinding(val) {
   _activeBinding = val;
 }
@@ -32,9 +34,10 @@ function NewState(defaults = {}, getter = null, setter = null) {
       if (key === "__unwatch") return _unwatchFunc;
       if (_activeBinding) {
         if (!_stateMappings.has(key)) _stateMappings.set(key, /* @__PURE__ */ new Set());
-        _stateMappings.get(key).add(_activeBinding);
-        if (!_activeBinding.node._states) _activeBinding.node._states = /* @__PURE__ */ new Set();
-        _activeBinding.node._states.add(_stateMappings);
+        const bindingSet = _stateMappings.get(key);
+        bindingSet.add(_activeBinding);
+        if (!_activeBinding._sets) _activeBinding._sets = /* @__PURE__ */ new Set();
+        _activeBinding._sets.add(bindingSet);
       }
       return _getter(key);
     },
@@ -55,15 +58,21 @@ function NewState(defaults = {}, getter = null, setter = null) {
         _watchers.get(null).forEach((cb) => cb(value));
       }
       if (_stateMappings.has(key)) {
-        const bindings = _stateMappings.get(key);
-        for (const binding of bindings) {
-          if (!binding.node.isConnected) {
-            bindings.delete(binding);
-            continue;
+        if (_updateDepth > MAX_UPDATE_DEPTH) return console.error("Recursive update detected at key:", key), true;
+        _updateDepth++;
+        try {
+          const bindings = _stateMappings.get(key);
+          for (const binding of bindings) {
+            if (!binding.node.isConnected) {
+              bindings.delete(binding);
+              continue;
+            }
+            if (_noWriteBack !== binding.node && _updateBindingFn) {
+              _updateBindingFn(binding);
+            }
           }
-          if (_noWriteBack !== binding.node && _updateBindingFn) {
-            _updateBindingFn(binding);
-          }
+        } finally {
+          _updateDepth--;
         }
       }
       return true;
@@ -267,24 +276,20 @@ function _updateBinding(binding) {
 }
 const _initBinding = (binding) => {
   if (!binding.node._bindings) binding.node._bindings = [];
-  binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
+  binding.node._bindings.push(binding);
   _updateBinding(binding);
 };
 const _parseNode = (node, scanObj) => {
-  if (node._bindings) {
-    node._states = /* @__PURE__ */ new Set();
-    node._bindings.forEach((bindingData) => {
-      const binding = { node, ...bindingData };
-      _updateBinding(binding);
-    });
-    if (node._hasOnUpdate) node.dispatchEvent(new Event("update", { bubbles: false }));
-    return;
-  }
   if (Component.exists(node.tagName) && !node._componentInitialized) {
     node._componentInitialized = true;
     _makeComponent(node.tagName, node, scanObj);
     $$(node, "[slot-id]").forEach((placeholder) => placeholder.removeAttribute("slot-id"));
     if (!node._thisObj) node._thisObj = node;
+  }
+  if (node._bindings) {
+    node._bindings.forEach((binding) => _updateBinding(binding));
+    if (node._hasOnUpdate) node.dispatchEvent(new Event("update", { bubbles: false }));
+    return;
   }
   let attrs = [];
   if (node.tagName === "TEMPLATE") {
@@ -300,7 +305,6 @@ const _parseNode = (node, scanObj) => {
   if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
   if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
   if (!node._ref) node._ref = scanObj.extendVars || {};
-  node._states = /* @__PURE__ */ new Set();
   attrs.forEach((attr) => {
     const exp = attr.name.startsWith("$") || attr.name.startsWith("st-");
     const realAttrName = exp ? attr.name.slice(attr.name.startsWith("$") ? 1 : 3) : attr.name;
@@ -432,12 +436,11 @@ const _scanTree = (node, scanObj = {}) => {
 const _unbindTree = (node) => {
   if (node.nodeType !== 1) return;
   if (node._hasOnUnload) node.dispatchEvent(new Event("unload", { bubbles: false }));
-  if (node._states) {
-    node._states.forEach((stateMappings) => {
-      for (const [key, bindingSet] of stateMappings) {
-        for (const binding of bindingSet) {
-          if (binding.node === node) bindingSet.delete(binding);
-        }
+  if (node._bindings) {
+    node._bindings.forEach((binding) => {
+      if (binding._sets) {
+        binding._sets.forEach((set) => set.delete(binding));
+        binding._sets.clear();
       }
     });
   }
@@ -470,10 +473,14 @@ const Component = {
   }
 };
 function _mergeNode(from, to, scanObj, exists = {}) {
-  Array.from(from.attributes).forEach((attr) => attr.name !== "class" && to.setAttribute(attr.name, attr.value));
-  to.classList.add(...from.classList);
+  if (from.attributes) {
+    Array.from(from.attributes).forEach((attr) => attr.name !== "class" && to.setAttribute(attr.name, attr.value));
+  }
+  if (from.classList) {
+    to.classList.add(...from.classList);
+  }
   Array.from(from.childNodes).forEach((child) => to.appendChild(child));
-  if (Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
+  if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
 function _makeComponent(name, node, scanObj, exists = {}) {
   if (exists[name]) return;
@@ -499,15 +506,26 @@ function _makeComponent(name, node, scanObj, exists = {}) {
       _mergeNode(rootNode, node, scanObj, exists);
       $$(node, "[slot-id]").forEach((placeholder) => {
         const slotName = placeholder.getAttribute("slot-id");
-        if (slots[slotName]) {
+        const slotSource = slots[slotName];
+        if (slotSource) {
           placeholder.removeAttribute("slot-id");
           placeholder.innerHTML = "";
-          _mergeNode(slots[slotName], placeholder, scanObj, exists);
+          if (slotSource.tagName === "TEMPLATE") {
+            Array.from(slotSource.content.childNodes).forEach((child) => placeholder.appendChild(child.cloneNode(true)));
+          } else {
+            _mergeNode(slotSource, placeholder, scanObj, exists);
+          }
         }
       });
     }
   }
-  if (componentFunc) componentFunc(node);
+  if (componentFunc) {
+    try {
+      componentFunc(node);
+    } catch (e) {
+      console.error("Error in component setupFunc for", name, e);
+    }
+  }
 }
 const Util = {
   clone: window.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),

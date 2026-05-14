@@ -2,6 +2,8 @@
 let _activeBinding = null;
 let _noWriteBack = null;
 let _updateBindingFn = null;
+let _updateDepth = 0;
+const MAX_UPDATE_DEPTH = 100;
 
 export function getActiveBinding() { return _activeBinding; }
 export function setActiveBinding(val) { _activeBinding = val; }
@@ -34,9 +36,10 @@ export function NewState(defaults = {}, getter = null, setter = null) {
             if (key === '__unwatch') return _unwatchFunc;
             if (_activeBinding) {
                 if (!_stateMappings.has(key)) _stateMappings.set(key, new Set());
-                _stateMappings.get(key).add(_activeBinding);
-                if (!_activeBinding.node._states) _activeBinding.node._states = new Set();
-                _activeBinding.node._states.add(_stateMappings);
+                const bindingSet = _stateMappings.get(key);
+                bindingSet.add(_activeBinding);
+                if (!_activeBinding._sets) _activeBinding._sets = new Set();
+                _activeBinding._sets.add(bindingSet);
             }
             return _getter(key);
         },
@@ -57,15 +60,21 @@ export function NewState(defaults = {}, getter = null, setter = null) {
                 _watchers.get(null).forEach(cb => cb(value));
             }
             if (_stateMappings.has(key)) {
-                const bindings = _stateMappings.get(key);
-                for (const binding of bindings) {
-                    if (!binding.node.isConnected) {
-                        bindings.delete(binding);
-                        continue;
+                if (_updateDepth > MAX_UPDATE_DEPTH) return console.error('Recursive update detected at key:', key), true;
+                _updateDepth++;
+                try {
+                    const bindings = _stateMappings.get(key);
+                    for (const binding of bindings) {
+                        if (!binding.node.isConnected) {
+                            bindings.delete(binding);
+                            continue;
+                        }
+                        if (_noWriteBack !== binding.node && _updateBindingFn) {
+                            _updateBindingFn(binding);
+                        }
                     }
-                    if (_noWriteBack !== binding.node && _updateBindingFn) {
-                        _updateBindingFn(binding);
-                    }
+                } finally {
+                    _updateDepth--;
                 }
             }
             return true;

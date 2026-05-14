@@ -189,26 +189,22 @@ export function _updateBinding(binding) {
 
 export const _initBinding = (binding) => {
     if (!binding.node._bindings) binding.node._bindings = [];
-    binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
+    binding.node._bindings.push(binding);
     _updateBinding(binding);
 };
 
 export const _parseNode = (node, scanObj) => {
-    if (node._bindings) {
-        node._states = new Set();
-        node._bindings.forEach(bindingData => {
-            const binding = { node: node, ...bindingData };
-            _updateBinding(binding);
-        });
-        if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
-        return;
-    }
-
     if (Component.exists(node.tagName) && !node._componentInitialized) {
         node._componentInitialized = true;
         _makeComponent(node.tagName, node, scanObj);
         $$(node, '[slot-id]').forEach(placeholder => placeholder.removeAttribute('slot-id'));
         if (!node._thisObj) node._thisObj = node;
+    }
+
+    if (node._bindings) {
+        node._bindings.forEach(binding => _updateBinding(binding));
+        if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
+        return;
     }
 
     let attrs = [];
@@ -226,7 +222,6 @@ export const _parseNode = (node, scanObj) => {
     if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
     if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
     if (!node._ref) node._ref = scanObj.extendVars || {};
-    node._states = new Set();
 
     attrs.forEach(attr => {
         const exp = attr.name.startsWith('$') || attr.name.startsWith('st-');
@@ -365,12 +360,11 @@ export const _scanTree = (node, scanObj = {}) => {
 export const _unbindTree = (node) => {
     if (node.nodeType !== 1) return;
     if (node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
-    if (node._states) {
-        node._states.forEach(stateMappings => {
-            for (const [key, bindingSet] of stateMappings) {
-                for (const binding of bindingSet) {
-                    if (binding.node === node) bindingSet.delete(binding);
-                }
+    if (node._bindings) {
+        node._bindings.forEach(binding => {
+            if (binding._sets) {
+                binding._sets.forEach(set => set.delete(binding));
+                binding._sets.clear();
             }
         });
     }
