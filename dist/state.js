@@ -86,13 +86,18 @@ let _disableRunCodeError = false;
 function setDisableRunCodeError(value) {
   _disableRunCodeError = value;
 }
+const _fnCache = /* @__PURE__ */ new Map();
 function _runCode(code, vars, thisObj, extendVars) {
   const argKeys = [...Object.keys(extendVars || {}), ...Object.keys(vars || {})];
   const argValues = [...Object.values(extendVars || {}), ...Object.values(vars || {})];
-  argKeys.push(code);
+  const cacheKey = code + argKeys.join(",");
   try {
-    const r = new Function(...argKeys).apply(thisObj, argValues);
-    return r;
+    let fn = _fnCache.get(cacheKey);
+    if (!fn) {
+      fn = new Function(...argKeys, code);
+      _fnCache.set(cacheKey, fn);
+    }
+    return fn.apply(thisObj, argValues);
   } catch (e) {
     if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
     return null;
@@ -110,7 +115,7 @@ let _translator = (text, args) => {
 };
 const SetTranslator = (fn) => _translator = fn;
 const _translate = (text) => {
-  if (!text || typeof text !== "string") return text;
+  if (!text || typeof text !== "string" || !text.includes("{#")) return text;
   return text.replace(/\{#(.+?)#\}/g, (m, content) => {
     const parts = content.split("||").map((s) => s.trim());
     const rawText = parts[0];

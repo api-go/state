@@ -13,7 +13,7 @@ let _translator = (text, args) => {
 export const SetTranslator = (fn) => _translator = fn;
 
 const _translate = (text) => {
-	if (!text || typeof text !== 'string') return text;
+	if (!text || typeof text !== 'string' || !text.includes('{#')) return text;
 	return text.replace(/\{#(.+?)#\}/g, (m, content) => {
 		const parts = content.split('||').map(s => s.trim());
 		const rawText = parts[0];

@@ -5,13 +5,19 @@ export function setDisableRunCodeError(value) {
 	_disableRunCodeError = value;
 }
 
+const _fnCache = new Map();
+
 export function _runCode(code, vars, thisObj, extendVars) {
 	const argKeys = [...Object.keys(extendVars || {}), ...Object.keys(vars || {})];
 	const argValues = [...Object.values(extendVars || {}), ...Object.values(vars || {})];
-	argKeys.push(code);
+	const cacheKey = code + argKeys.join(',');
 	try {
-		const r = new Function(...argKeys).apply(thisObj, argValues);
-		return r;
+		let fn = _fnCache.get(cacheKey);
+		if (!fn) {
+			fn = new Function(...argKeys, code);
+			_fnCache.set(cacheKey, fn);
+		}
+		return fn.apply(thisObj, argValues);
 	} catch (e) {
 		if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
 		return null;
