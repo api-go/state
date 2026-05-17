@@ -88,16 +88,17 @@ function setDisableRunCodeError(value) {
 }
 const _fnCache = /* @__PURE__ */ new Map();
 function _runCode(code, vars, thisObj, extendVars) {
-  const argKeys = [...Object.keys(extendVars || {}), ...Object.keys(vars || {})];
-  const argValues = [...Object.values(extendVars || {}), ...Object.values(vars || {})];
+  const allVars = { ...extendVars || {}, ...vars || {} };
+  const argKeys = Object.keys(allVars);
+  const argValues = Object.values(allVars);
   const cacheKey = code + argKeys.join(",");
   try {
     let fn = _fnCache.get(cacheKey);
     if (!fn) {
-      fn = new Function(...argKeys, code);
+      fn = new Function("Hash", "LocalStorage", "State", ...argKeys, code);
       _fnCache.set(cacheKey, fn);
     }
-    return fn.apply(thisObj, argValues);
+    return fn.apply(thisObj, [globalThis.Hash, globalThis.LocalStorage, globalThis.State, ...argValues]);
   } catch (e) {
     if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
     return null;
@@ -300,6 +301,9 @@ const _parseNode = (node, scanObj) => {
   if (node._bindings) {
     node._bindings.forEach((binding) => _updateBinding(binding));
     if (node._hasOnUpdate) node.dispatchEvent(new Event("update", { bubbles: false }));
+    if (node.hasAttribute("onupdate")) {
+      _runCode(node.getAttribute("onupdate"), { thisNode: node }, node._thisObj || node, node._ref || {});
+    }
     return;
   }
   let attrs = [];
@@ -325,11 +329,12 @@ const _parseNode = (node, scanObj) => {
       _initBinding({ node, prop: realAttrName.split("."), tpl, exp });
     } else {
       if (realAttrName.startsWith("on")) {
-        if (realAttrName === "onupdate") node._hasOnUpdate = true;
-        if (realAttrName === "onload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnLoad = true;
-        if (realAttrName === "onunload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
+        const eventName = realAttrName.slice(2);
+        if (eventName === "update") node._hasOnUpdate = true;
+        if (eventName === "load" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnLoad = true;
+        if (eventName === "onunload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
         ((node2, thisObj) => {
-          node2.addEventListener(realAttrName.slice(2), (e) => {
+          node2.addEventListener(eventName, (e) => {
             _runCode(tpl, { event: e, thisNode: node2, ...e.detail || {} }, thisObj || node2, node2._ref || {});
           });
         })(node, scanObj.thisObj);
@@ -368,17 +373,22 @@ const _parseNode = (node, scanObj) => {
 };
 const _scanTree = (node, scanObj = {}) => {
   if (node.nodeType === 3) {
+    if (node._stTranslated) return;
     const translated = _translate(node.textContent);
     if (translated !== node.textContent) node.textContent = translated;
+    node._stTranslated = true;
     return;
   }
   if (node.nodeType !== 1) return;
-  Array.from(node.attributes).forEach((attr) => {
-    if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
-      const translated = _translate(attr.value);
-      if (translated !== attr.value) attr.value = translated;
-    }
-  });
+  if (!node._stTranslated) {
+    Array.from(node.attributes).forEach((attr) => {
+      if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
+        const translated = _translate(attr.value);
+        if (translated !== attr.value) attr.value = translated;
+      }
+    });
+    node._stTranslated = true;
+  }
   if (node.tagName !== "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("$each") || node.hasAttribute("st-if") || node.hasAttribute("st-each"))) {
     const template = document.createElement("TEMPLATE");
     const attrs = Array.from(node.attributes).filter((attr) => ["$if", "$each", "st-if", "st-each"].includes(attr.name) || (node.hasAttribute("$each") || node.hasAttribute("st-each")) && ["as", "index"].includes(attr.name));

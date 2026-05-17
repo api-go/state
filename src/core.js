@@ -8,16 +8,17 @@ export function setDisableRunCodeError(value) {
 const _fnCache = new Map();
 
 export function _runCode(code, vars, thisObj, extendVars) {
-	const argKeys = [...Object.keys(extendVars || {}), ...Object.keys(vars || {})];
-	const argValues = [...Object.values(extendVars || {}), ...Object.values(vars || {})];
+	const allVars = { ...(extendVars || {}), ... (vars || {}) };
+	const argKeys = Object.keys(allVars);
+	const argValues = Object.values(allVars);
 	const cacheKey = code + argKeys.join(',');
 	try {
 		let fn = _fnCache.get(cacheKey);
 		if (!fn) {
-			fn = new Function(...argKeys, code);
+			fn = new Function('Hash', 'LocalStorage', 'State', ...argKeys, code);
 			_fnCache.set(cacheKey, fn);
 		}
-		return fn.apply(thisObj, argValues);
+		return fn.apply(thisObj, [globalThis.Hash, globalThis.LocalStorage, globalThis.State, ...argValues]);
 	} catch (e) {
 		if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
 		return null;

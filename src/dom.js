@@ -210,6 +210,9 @@ export const _parseNode = (node, scanObj) => {
 	if (node._bindings) {
 		node._bindings.forEach(binding => _updateBinding(binding));
 		if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
+		if (node.hasAttribute('onupdate')) {
+			_runCode(node.getAttribute('onupdate'), { thisNode: node }, node._thisObj || node, node._ref || {});
+		}
 		return;
 	}
 
@@ -238,11 +241,12 @@ export const _parseNode = (node, scanObj) => {
 			_initBinding({ node: node, prop: realAttrName.split('.'), tpl, exp });
 		} else {
 			if (realAttrName.startsWith('on')) {
-				if (realAttrName === 'onupdate') node._hasOnUpdate = true;
-				if (realAttrName === 'onload' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnLoad = true;
-				if (realAttrName === 'onunload' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnUnload = true;
+				const eventName = realAttrName.slice(2);
+				if (eventName === 'update') node._hasOnUpdate = true;
+				if (eventName === 'load' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnLoad = true;
+				if (eventName === 'onunload' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnUnload = true;
 				((node, thisObj) => {
-					node.addEventListener(realAttrName.slice(2), (e) => {
+					node.addEventListener(eventName, (e) => {
 						_runCode(tpl, { event: e, thisNode: node, ...(e.detail || {}) }, thisObj || node, node._ref || {});
 					});
 				})(node, scanObj.thisObj);
@@ -282,18 +286,23 @@ export const _parseNode = (node, scanObj) => {
 
 export const _scanTree = (node, scanObj = {}) => {
 	if (node.nodeType === 3) {
+		if (node._stTranslated) return;
 		const translated = _translate(node.textContent);
 		if (translated !== node.textContent) node.textContent = translated;
+		node._stTranslated = true;
 		return;
 	}
 	if (node.nodeType !== 1) return;
 
-	Array.from(node.attributes).forEach(attr => {
-		if (!attr.name.startsWith('$') && !attr.name.startsWith('st-') && !attr.name.startsWith('.')) {
-			const translated = _translate(attr.value);
-			if (translated !== attr.value) attr.value = translated;
-		}
-	});
+	if (!node._stTranslated) {
+		Array.from(node.attributes).forEach(attr => {
+			if (!attr.name.startsWith('$') && !attr.name.startsWith('st-') && !attr.name.startsWith('.')) {
+				const translated = _translate(attr.value);
+				if (translated !== attr.value) attr.value = translated;
+			}
+		});
+		node._stTranslated = true;
+	}
 
 	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each'))) {
 		const template = document.createElement('TEMPLATE');
