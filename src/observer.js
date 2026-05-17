@@ -15,6 +15,7 @@ export function onNotifyUpdate(fn) {
 }
 
 export function NewState(defaults = {}, getter = null, setter = null) {
+    if (defaults && defaults.__watch) return defaults
     const _defaults = {};
     const _stateMappings = new Map();
     const _watchers = new Map();

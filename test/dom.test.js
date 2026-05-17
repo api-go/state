@@ -26,12 +26,14 @@ export async function testDom() {
     RefreshState(document.documentElement);
     if ($('#if-content')) throw new Error('$if failed: should be hidden');
     
+    const wait = () => new Promise(r => setTimeout(r, 10));
+    
     state.show = true;
-    await Promise.resolve();
+    await wait();
     if (!$('#if-content') || $('#if-content').textContent !== 'Visible') throw new Error('$if failed: should be visible');
     
     state.show = false;
-    await Promise.resolve();
+    await wait();
     if ($('#if-content')) throw new Error('$if failed: should be hidden again');
 
     // 3. $each directive (Index-based reuse)
@@ -44,7 +46,7 @@ export async function testDom() {
     `;
     state.items = [{ name: 'A' }, { name: 'B' }];
     RefreshState(document.documentElement);
-    await Promise.resolve(); // Wait for MutationObserver
+    await wait(); // Wait for MutationObserver
     let items = $$('#list-test li');
     console.log('$each items length:', items.length);
     if (items.length > 0) console.log('$each first item text:', items[0].textContent);
@@ -52,13 +54,13 @@ export async function testDom() {
     
     const firstNode = items[0];
     state.items = [{ name: 'A-mod' }, { name: 'B' }, { name: 'C' }];
-    await Promise.resolve();
+    await wait();
     items = $$('#list-test li');
     if (items.length !== 3 || items[0].textContent !== 'A-mod') throw new Error('$each update failed');
     if (items[0] !== firstNode) throw new Error('$each reuse failed: should reuse existing DOM nodes');
 
     state.items = [{ name: 'C' }];
-    await Promise.resolve();
+    await wait();
     items = $$('#list-test li');
     if (items.length !== 1 || items[0].textContent !== 'C') throw new Error('$each removal failed');
 
@@ -66,7 +68,7 @@ export async function testDom() {
     document.body.innerHTML = `<input id="input-test" $bind="state.val">`;
     state.val = 'initial';
     RefreshState(document.documentElement);
-    await Promise.resolve();
+    await wait();
     const input = $('#input-test');
     if (input.value !== 'initial') throw new Error('$bind initial value failed');
     

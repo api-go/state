@@ -14,6 +14,7 @@ function onNotifyUpdate(fn) {
   _updateBindingFn = fn;
 }
 function NewState(defaults = {}, getter = null, setter = null) {
+  if (defaults && defaults.__watch) return defaults;
   const _defaults = {};
   const _stateMappings = /* @__PURE__ */ new Map();
   const _watchers = /* @__PURE__ */ new Map();
@@ -101,7 +102,12 @@ function _returnCode(code, vars, thisObj, extendVars) {
   if (code.includes("${")) return _runCode("return `" + code + "`", vars, thisObj, extendVars);
   else return _runCode("return " + code, vars, thisObj, extendVars);
 }
-let _translator = (text) => text;
+let _translator = (text, args) => {
+  if (!text || typeof text !== "string") return text;
+  return text.replace(/\{(.+?)\}/g, (match, key) => {
+    return args.hasOwnProperty(key) ? args[key] : match;
+  });
+};
 const SetTranslator = (fn) => _translator = fn;
 const _translate = (text) => {
   if (!text || typeof text !== "string") return text;
@@ -248,7 +254,7 @@ function _updateBinding(binding) {
       } else if (node.type === "radio") {
         if (node.checked !== (node.value === String(result ?? ""))) node.checked = node.value === String(result ?? "");
       } else if ("value" in node && node.type !== "file") {
-        Promise.resolve().then(() => {
+        setTimeout(() => {
           if (node.value !== String(result ?? "")) node.value = result;
         });
       } else if (node.isContentEditable) {
