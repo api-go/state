@@ -42,7 +42,9 @@ export function _mergeNode(from, to, scanObj, exists = {}) {
         });
     }
     to.classList.add(...from.classList);
-    Array.from(from.childNodes).forEach(child => to.appendChild(child));
+    const fromContent = from.tagName === 'TEMPLATE' ? from.content : from;
+    const toContent = to.tagName === 'TEMPLATE' ? to.content : to;
+    Array.from(fromContent.childNodes).forEach(child => toContent.appendChild(child));
     if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
 
