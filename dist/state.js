@@ -281,7 +281,7 @@ function _updateBinding(binding) {
             node._renderedNodes[i].forEach((child) => {
               child._ref[indexName] = k;
               child._ref[asName] = item;
-              _scanTree(child);
+              _scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
             });
           } else {
             const newNodes = [];
@@ -363,9 +363,6 @@ const _parseNode = (node, scanObj) => {
       _updateBinding(binding);
     });
     if (node._hasOnUpdate) node.dispatchEvent(new Event("update", { bubbles: false }));
-    if (node.hasAttribute("onupdate")) {
-      _runCode(node.getAttribute("onupdate"), { thisNode: node }, node._thisObj || node, node._ref || {});
-    }
     return;
   }
   if (Component.exists(node.tagName) && !node._componentInitialized) {
@@ -419,7 +416,7 @@ const _parseNode = (node, scanObj) => {
         const eventName = realAttrName.slice(2);
         if (eventName === "update") node._hasOnUpdate = true;
         if (eventName === "load" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnLoad = true;
-        if (eventName === "onunload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
+        if (eventName === "unload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
         ((node2, thisObj) => {
           node2.addEventListener(eventName, (e) => {
             _runCode(tpl, { event: e, thisNode: node2, ...e.detail || {} }, thisObj || node2, node2._ref || {});
@@ -656,10 +653,6 @@ if (typeof document !== "undefined") {
         mutation.removedNodes.forEach((oldNode) => _unbindTree(oldNode));
       });
     }).observe(document.documentElement, { childList: true, subtree: true });
-    const htmlNode = document.documentElement;
-    if (!htmlNode.hasAttribute("$data-bs-theme") && !htmlNode.hasAttribute("data-bs-theme")) {
-      htmlNode.setAttribute("$data-bs-theme", "LocalStorage.darkMode?'dark':'light'");
-    }
     _scanTree(document.documentElement);
   };
   if (document.readyState !== "loading") init();

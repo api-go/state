@@ -21,11 +21,6 @@ if (typeof document !== 'undefined') {
             });
         }).observe(document.documentElement, { childList: true, subtree: true });
 
-        const htmlNode = document.documentElement;
-        if (!htmlNode.hasAttribute('$data-bs-theme') && !htmlNode.hasAttribute('data-bs-theme')) {
-            htmlNode.setAttribute('$data-bs-theme', "LocalStorage.darkMode?'dark':'light'");
-        }
-
         _scanTree(document.documentElement);
     };
 
