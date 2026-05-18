@@ -165,7 +165,6 @@ export function _updateBinding(binding) {
 			} else if (node.type === 'radio') {
 				if (node.checked !== (node.value === String(result ?? ''))) node.checked = (node.value === String(result ?? ''));
 			} else if ('value' in node && node.type !== 'file') {
-				// 这里必须用宏任务，微任务不足以确保DOM更新完成
 				setTimeout(() => {
 					if (node.value !== String(result ?? '')) node.value = result;
 				});
@@ -195,25 +194,48 @@ export function _updateBinding(binding) {
 
 export const _initBinding = (binding) => {
 	if (!binding.node._bindings) binding.node._bindings = [];
-	binding.node._bindings.push(binding);
+	binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
 	_updateBinding(binding);
 };
 
 export const _parseNode = (node, scanObj) => {
-	if (Component.exists(node.tagName) && !node._componentInitialized) {
-		node._componentInitialized = true;
-		_makeComponent(node.tagName, node, scanObj);
-		$$(node, '[slot-id]').forEach(placeholder => placeholder.removeAttribute('slot-id'));
-		if (!node._thisObj) node._thisObj = node;
-	}
-
 	if (node._bindings) {
-		node._bindings.forEach(binding => _updateBinding(binding));
+		node._states = new Set();
+		node._bindings.forEach(bindingData => {
+			const binding = { node: node, ...bindingData };
+			_updateBinding(binding);
+		});
 		if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
 		if (node.hasAttribute('onupdate')) {
 			_runCode(node.getAttribute('onupdate'), { thisNode: node }, node._thisObj || node, node._ref || {});
 		}
 		return;
+	}
+
+	if (Component.exists(node.tagName) && !node._componentInitialized) {
+		Array.from(node.attributes).forEach(attr => {
+			if (attr.name.startsWith('$.')) {
+				const realAttrName = attr.name.slice(2);
+				let tpl = attr.value;
+				if (tpl.includes('this.')) tpl = tpl.replace(/\bthis\./g, 'this.parent.');
+				tpl = _translate(tpl);
+				const result = _returnCode(tpl, { thisNode: node }, { parent: scanObj.thisObj || node }, node._ref || {});
+				let o = node;
+				const prop = realAttrName.split('.');
+				for (let i = 0; i < prop.length - 1; i++) {
+					if (!prop[i]) continue;
+					if (o[prop[i]] == null) o[prop[i]] = {};
+					o = o[prop[i]];
+				}
+				o[prop[prop.length - 1]] = result;
+				node.removeAttribute(attr.name);
+			}
+		});
+
+		_makeComponent(node.tagName, node, scanObj);
+		$$(node, '[slot-id]').forEach(placeholder => placeholder.removeAttribute('slot-id'));
+		node._componentInitialized = true;
+		if (!node._thisObj) node._thisObj = node;
 	}
 
 	let attrs = [];
@@ -231,6 +253,7 @@ export const _parseNode = (node, scanObj) => {
 	if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
 	if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
 	if (!node._ref) node._ref = scanObj.extendVars || {};
+	node._states = new Set();
 
 	attrs.forEach(attr => {
 		const exp = attr.name.startsWith('$') || attr.name.startsWith('st-');
@@ -275,6 +298,7 @@ export const _parseNode = (node, scanObj) => {
 			}
 		}
 	});
+
 	if (node._hasOnLoad || node._componentInitialized) {
 		(node => {
 			Promise.resolve().then(() => node.dispatchEvent(new Event('load', { bubbles: false })));
@@ -375,11 +399,12 @@ export const _scanTree = (node, scanObj = {}) => {
 export const _unbindTree = (node) => {
 	if (node.nodeType !== 1) return;
 	if (node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
-	if (node._bindings) {
-		node._bindings.forEach(binding => {
-			if (binding._sets) {
-				binding._sets.forEach(set => set.delete(binding));
-				binding._sets.clear();
+	if (node._states) {
+		node._states.forEach(stateMappings => {
+			for (const [key, bindingSet] of stateMappings) {
+				for (const binding of bindingSet) {
+					if (binding.node === node) bindingSet.delete(binding);
+				}
 			}
 		});
 	}

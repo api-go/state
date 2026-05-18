@@ -1,6 +1,6 @@
 {
 	"name": "@web/state",
-	"version": "1.0.2",
+	"version": "1.0.8",
 
 	"type": "module",
 	"main": "dist/state.js",

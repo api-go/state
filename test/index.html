@@ -17,6 +17,8 @@
         import { testObserver } from './observer.test.js';
         import { testDom } from './dom.test.js';
         import { testComponent } from './component.test.js';
+        import { testPriority } from './priority.test.js';
+        import { testMerging } from './merging.test.js';
 
         async function runAll() {
             const results = document.getElementById('results');
@@ -25,6 +27,8 @@
                 await testObserver();
                 await testDom();
                 await testComponent();
+                await testPriority();
+                await testMerging();
                 results.innerHTML = '<h1 style="color: green">All Tests Passed 🎉</h1>';
                 window.testStatus = 'passed';
             } catch (e) {

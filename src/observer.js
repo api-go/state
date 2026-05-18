@@ -1,52 +1,51 @@
 // src/observer.js
 let _activeBinding = null;
 let _noWriteBack = null;
-let _updateBindingFn = null;
-let _updateDepth = 0;
-const MAX_UPDATE_DEPTH = 100;
 
-export function getActiveBinding() { return _activeBinding; }
-export function setActiveBinding(val) { _activeBinding = val; }
-export function getNoWriteBack() { return _noWriteBack; }
-export function setNoWriteBack(val) { _noWriteBack = val; }
+export const getActiveBinding = () => _activeBinding;
+export const setActiveBinding = (val) => _activeBinding = val;
+export const getNoWriteBack = () => _noWriteBack;
+export const setNoWriteBack = (val) => _noWriteBack = val;
 
-export function onNotifyUpdate(fn) {
-    _updateBindingFn = fn;
-}
+const _notifiers = new Set();
+export const onNotifyUpdate = (fn) => _notifiers.add(fn);
 
 export function NewState(defaults = {}, getter = null, setter = null) {
-    if (defaults && defaults.__watch) return defaults
     const _defaults = {};
     const _stateMappings = new Map();
     const _watchers = new Map();
+
     const _watchFunc = (k, cb) => {
         if (!_watchers.has(k)) _watchers.set(k, new Set());
         !cb ? _watchers.get(k).clear() : _watchers.get(k).add(cb);
+        return () => _watchers.get(k).delete(cb);
     };
+
     const _unwatchFunc = (k, cb) => {
-        if (!_watchers.has(k)) _watchers.set(k, new Set());
-        _watchers.get(k).delete(cb);
+        if (_watchers.has(k)) _watchers.get(k).delete(cb);
     };
-    const _getter = getter || (k => _defaults[k]);
-    const _setter = setter || ((k, v) => _defaults[k] = v);
+
+    const __getter = getter || (k => _defaults[k]);
+    const __setter = setter || ((k, v) => _defaults[k] = v);
     Object.assign(_defaults, defaults);
-    
+
     return new Proxy(_defaults, {
         get(target, key) {
             if (key === '__watch') return _watchFunc;
             if (key === '__unwatch') return _unwatchFunc;
+            if (key === '__isProxy') return true;
+
             if (_activeBinding) {
                 if (!_stateMappings.has(key)) _stateMappings.set(key, new Set());
-                const bindingSet = _stateMappings.get(key);
-                bindingSet.add(_activeBinding);
-                if (!_activeBinding._sets) _activeBinding._sets = new Set();
-                _activeBinding._sets.add(bindingSet);
+                _stateMappings.get(key).add(_activeBinding);
+                if (!_activeBinding.node._states) _activeBinding.node._states = new Set();
+                _activeBinding.node._states.add(_stateMappings);
             }
-            return _getter(key);
+            return __getter(key);
         },
         set(target, key, value) {
-            if (_getter(key) !== value) {
-                _setter(key, value);
+            if (__getter(key) !== value) {
+                __setter(key, value);
             }
             if (_watchers.has(key)) {
                 _watchers.get(key).forEach(cb => {
@@ -61,21 +60,15 @@ export function NewState(defaults = {}, getter = null, setter = null) {
                 _watchers.get(null).forEach(cb => cb(value));
             }
             if (_stateMappings.has(key)) {
-                if (_updateDepth > MAX_UPDATE_DEPTH) return console.error('Recursive update detected at key:', key), true;
-                _updateDepth++;
-                try {
-                    const bindings = _stateMappings.get(key);
-                    for (const binding of bindings) {
-                        if (!binding.node.isConnected) {
-                            bindings.delete(binding);
-                            continue;
-                        }
-                        if (_noWriteBack !== binding.node && _updateBindingFn) {
-                            _updateBindingFn(binding);
-                        }
+                const bindings = _stateMappings.get(key);
+                for (const binding of bindings) {
+                    if (!binding.node.isConnected) {
+                        bindings.delete(binding);
+                        continue;
                     }
-                } finally {
-                    _updateDepth--;
+                    if (_noWriteBack !== binding.node) {
+                        _notifiers.forEach(fn => fn(binding));
+                    }
                 }
             }
             return true;

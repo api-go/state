@@ -1,7 +1,6 @@
 // src/component.js
 import { NewState } from './observer.js';
 import { $, $$ } from './dom-utils.js';
-import { _scanTree } from './dom.js';
 
 const _components = new Map();
 const _pendingTemplates = [];
@@ -32,11 +31,17 @@ export const Component = {
 
 export function _mergeNode(from, to, scanObj, exists = {}) {
     if (from.attributes) {
-        Array.from(from.attributes).forEach(attr => attr.name !== 'class' && to.setAttribute(attr.name, attr.value));
+        Array.from(from.attributes).forEach(attr => {
+            if (attr.name === 'class') return;
+            if (attr.name === 'style') {
+                if (to.hasAttribute('style')) to.setAttribute('style', `${attr.value}; ${to.getAttribute('style')}`);
+                else to.setAttribute('style', attr.value);
+            } else if (!to.hasAttribute(attr.name)) {
+                to.setAttribute(attr.name, attr.value);
+            }
+        });
     }
-    if (from.classList) {
-        to.classList.add(...from.classList);
-    }
+    to.classList.add(...from.classList);
     Array.from(from.childNodes).forEach(child => to.appendChild(child));
     if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
@@ -44,7 +49,13 @@ export function _mergeNode(from, to, scanObj, exists = {}) {
 export function _makeComponent(name, node, scanObj, exists = {}) {
     if (exists[name]) return;
     exists[name] = true;
-    if (scanObj.thisObj) Array.from(node.attributes).forEach(attr => { if ((attr.name.startsWith('$') || attr.name.startsWith('st-')) && attr.value.includes('this.')) attr.value = attr.value.replace(/\bthis\./g, 'this.parent.'); });
+    if (scanObj.thisObj) {
+        Array.from(node.attributes).forEach(attr => {
+            if ((attr.name.startsWith('$') || attr.name.startsWith('st-')) && attr.value.includes('this.')) {
+                attr.value = attr.value.replace(/\bthis\./g, 'this.parent.');
+            }
+        });
+    }
     const componentFunc = Component.getSetupFunction(name);
     const slots = {};
     Array.from(node.childNodes).forEach(child => {
@@ -59,28 +70,17 @@ export function _makeComponent(name, node, scanObj, exists = {}) {
     if (template) {
         const tplnode = template.content.cloneNode(true);
         if (tplnode.childNodes.length) {
-            const rootNode = tplnode.children[0];
-            _mergeNode(rootNode, node, scanObj, exists);
+            const rootNode = Array.from(tplnode.childNodes).find(n => n.nodeType === Node.ELEMENT_NODE);
+            if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
             $$(node, '[slot-id]').forEach(placeholder => {
                 const slotName = placeholder.getAttribute('slot-id');
-                const slotSource = slots[slotName];
-                if (slotSource) {
+                if (slots[slotName]) {
                     placeholder.removeAttribute('slot-id');
                     placeholder.innerHTML = '';
-                    if (slotSource.tagName === 'TEMPLATE') {
-                        Array.from(slotSource.content.childNodes).forEach(child => placeholder.appendChild(child.cloneNode(true)));
-                    } else {
-                        _mergeNode(slotSource, placeholder, scanObj, exists);
-                    }
+                    _mergeNode(slots[slotName], placeholder, scanObj, exists);
                 }
             });
         }
     }
-    if (componentFunc) {
-        try {
-            componentFunc(node);
-        } catch (e) {
-            console.error('Error in component setupFunc for', name, e);
-        }
-    }
+    if (componentFunc) componentFunc(node);
 }
