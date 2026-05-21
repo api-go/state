@@ -49,7 +49,10 @@ export function _updateBinding(binding) {
 	if (!node.isConnected && node.tagName !== 'TEMPLATE') return;
 
 	setActiveBinding(binding);
+	if (window.__perfTrace) window.__perfTrace.evalCount++;
+	const evalStart = window.__perfTrace ? performance.now() : 0;
 	let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
+	if (window.__perfTrace) window.__perfTrace.evalTotal += (performance.now() - evalStart);
 	setActiveBinding(null);
 
 	if (binding.prop) {
@@ -78,10 +81,13 @@ export function _updateBinding(binding) {
 			if (result) {
 				if (!node._renderedNodes || node._renderedNodes.length === 0) {
 					node._children.forEach(child => {
+						child._stManaged = true;
 						node.parentNode.insertBefore(child, node);
 						child._ref = { ...node._ref };
 					});
 					node._renderedNodes = [node._children];
+				} else {
+					node._renderedNodes[0].forEach(child => _scanTree(child, { thisObj: node._thisObj, extendVars: child._ref }));
 				}
 			} else {
 				_clearRenderedNodes(node);
@@ -91,48 +97,71 @@ export function _updateBinding(binding) {
 			if (result && typeof result === 'object') {
 				const asName = node.getAttribute('as') || 'item';
 				const indexName = node.getAttribute('index') || 'index';
+				const keyName = node.getAttribute('key');
 				let keys, getVal;
 				if (result instanceof Map) {
-					keys = Array.from(result.keys());
-					getVal = k => result.get(k);
+					keys = Array.from(result.keys()); getVal = k => result.get(k);
 				} else if (typeof result[Symbol.iterator] === 'function') {
 					const arr = Array.isArray(result) ? result : Array.from(result);
 					keys = new Array(arr.length);
 					for (let i = 0; i < arr.length; i++) keys[i] = i;
 					getVal = k => arr[k];
 				} else {
-					keys = Object.keys(result);
-					getVal = k => result[k];
+					keys = Object.keys(result); getVal = k => result[k];
 				}
+
+				if (!node._keyedNodes) node._keyedNodes = new Map();
+				const newKeyedNodes = new Map();
+				const currentRenderedNodes = [];
+
 				keys.forEach((k, i) => {
 					const item = getVal(k);
-					if (node._renderedNodes && i < node._renderedNodes.length) {
-						node._renderedNodes[i].forEach(child => {
+					const rawKey = keyName ? (item && typeof item === 'object' ? item[keyName] : item) : k;
+					// Safety: Handle potential duplicate keys or undefined keys
+					const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_fallback_${i}_${Math.random()}` : rawKey;
+					
+					let existingNodes = node._keyedNodes.get(keyVal);
+
+					if (existingNodes) {
+						// Reuse existing nodes
+						node._keyedNodes.delete(keyVal);
+						existingNodes.forEach(child => {
 							child._ref[indexName] = k;
-							child._ref[asName] = item;
-							_scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
+							// If data reference hasn't changed, skip heavy scan
+							if (child._ref[asName] !== item) {
+								child._ref[asName] = item;
+								_scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
+							} else if (node.parentNode.lastChild !== child) {
+								// Just move to the end to maintain order
+								node.parentNode.insertBefore(child, node);
+							}
 						});
 					} else {
-						const newNodes = [];
-						if (!node._renderedNodes) node._renderedNodes = [];
+						// Create new nodes
+						existingNodes = [];
 						node._children.forEach(child => {
 							const cloned = child.cloneNode(true);
+							cloned._stManaged = true;
 							cloned._ref = { ...node._ref, [indexName]: k, [asName]: item };
 							cloned._thisObj = node._thisObj;
 							node.parentNode.insertBefore(cloned, node);
-							newNodes.push(cloned);
+							existingNodes.push(cloned);
 						});
-						node._renderedNodes.push(newNodes);
 					}
+					newKeyedNodes.set(keyVal, existingNodes);
+					currentRenderedNodes.push(existingNodes);
+					// Ensure DOM order
+					existingNodes.forEach(child => node.parentNode.insertBefore(child, node));
 				});
-				while (node._renderedNodes && node._renderedNodes.length > keys.length) {
-					node._renderedNodes.pop().forEach(child => {
-						_clearRenderedNodes(child);
-						child.remove();
-					});
-				}
+
+				// Cleanup old nodes
+				node._keyedNodes.forEach(nodes => nodes.forEach(child => { _clearRenderedNodes(child); child.remove(); }));
+				node._keyedNodes = newKeyedNodes;
+				node._renderedNodes = currentRenderedNodes;
 			} else {
 				_clearRenderedNodes(node);
+				if (node._keyedNodes) node._keyedNodes.forEach(nodes => nodes.forEach(child => child.remove()));
+				node._keyedNodes = new Map();
 				node._renderedNodes = [];
 			}
 		} else if (attr === 'bind') {
@@ -322,7 +351,9 @@ export const _scanTree = (node, scanObj = {}) => {
 	
 	const nodes = [...(node.childNodes || [])];
 	const nextScanObj = { thisObj: scanObj.thisObj, extendVars: { ...node._ref } };
-	nodes.forEach(child => _scanTree(child, nextScanObj));
+	nodes.forEach(child => {
+		if (!child._stManaged) _scanTree(child, nextScanObj);
+	});
 };
 
 export const _unbindTree = (node) => {
