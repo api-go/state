@@ -119,20 +119,32 @@ export function _updateBinding(binding) {
 					const rawKey = keyName ? (item && typeof item === 'object' ? item[keyName] : item) : k;
 					// Safety: Handle potential duplicate keys or undefined keys
 					const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_fallback_${i}_${Math.random()}` : rawKey;
-					
+
 					let existingNodes = node._keyedNodes.get(keyVal);
 
 					if (existingNodes) {
 						// Reuse existing nodes
 						node._keyedNodes.delete(keyVal);
 						existingNodes.forEach(child => {
-							child._ref[indexName] = k;
-							// If data reference hasn't changed, skip heavy scan
-							if (child._ref[asName] !== item) {
+							if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.reuseCount++;
+							let scopeChanged = false;
+							for (let key in node._ref) {
+								if (key === asName || key === indexName) continue;
+								if (child._ref[key] !== node._ref[key]) {
+									child._ref[key] = node._ref[key];
+									scopeChanged = true;
+								}
+							}
+							const indexChanged = child._ref[indexName] !== k;
+							if (indexChanged) child._ref[indexName] = k;
+							
+							if (child._ref[asName] !== item || scopeChanged) {
 								child._ref[asName] = item;
+								if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.scanCount++;
 								_scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
 							} else if (node.parentNode.lastChild !== child) {
 								// Just move to the end to maintain order
+								if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.moveCount++;
 								node.parentNode.insertBefore(child, node);
 							}
 						});
@@ -346,9 +358,9 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._ref = curr ? { ...curr._ref } : {};
 	}
 	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
-	
+
 	_parseNode(node, scanObj);
-	
+
 	const nodes = [...(node.childNodes || [])];
 	const nextScanObj = { thisObj: scanObj.thisObj, extendVars: { ...node._ref } };
 	nodes.forEach(child => {
