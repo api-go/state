@@ -137,7 +137,7 @@ export function _updateBinding(binding) {
 							}
 							const indexChanged = child._ref[indexName] !== k;
 							if (indexChanged) child._ref[indexName] = k;
-							
+
 							if (child._ref[asName] !== item || scopeChanged) {
 								child._ref[asName] = item;
 								if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.scanCount++;
@@ -356,6 +356,9 @@ export const _scanTree = (node, scanObj = {}) => {
 		let curr = node;
 		while (curr && curr._ref === undefined) curr = curr.parentNode;
 		node._ref = curr ? { ...curr._ref } : {};
+	}
+	if (node._refExt !== undefined) {
+		Object.assign(node._ref, node._refExt);
 	}
 	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
 

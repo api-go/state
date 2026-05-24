@@ -285,11 +285,23 @@ function _updateBinding(binding) {
           if (existingNodes) {
             node._keyedNodes.delete(keyVal);
             existingNodes.forEach((child) => {
-              child._ref[indexName] = k;
-              if (child._ref[asName] !== item) {
+              if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.reuseCount++;
+              let scopeChanged = false;
+              for (let key in node._ref) {
+                if (key === asName || key === indexName) continue;
+                if (child._ref[key] !== node._ref[key]) {
+                  child._ref[key] = node._ref[key];
+                  scopeChanged = true;
+                }
+              }
+              const indexChanged = child._ref[indexName] !== k;
+              if (indexChanged) child._ref[indexName] = k;
+              if (child._ref[asName] !== item || scopeChanged) {
                 child._ref[asName] = item;
+                if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.scanCount++;
                 _scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
               } else if (node.parentNode.lastChild !== child) {
+                if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.moveCount++;
                 node.parentNode.insertBefore(child, node);
               }
             });
@@ -509,6 +521,9 @@ const _scanTree = (node, scanObj = {}) => {
     let curr = node;
     while (curr && curr._ref === void 0) curr = curr.parentNode;
     node._ref = curr ? { ...curr._ref } : {};
+  }
+  if (node._refExt !== void 0) {
+    Object.assign(node._ref, node._refExt);
   }
   if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
   _parseNode(node, scanObj);
