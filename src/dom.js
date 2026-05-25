@@ -309,13 +309,30 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true;
 	}
 
+	let resolvedThisObj = node._thisObj;
+	let resolvedRef = node._ref;
+
+	if (resolvedThisObj === undefined || resolvedRef === undefined) {
+		let curr = node;
+		while (curr && (resolvedThisObj === undefined || resolvedRef === undefined)) {
+			if (resolvedThisObj === undefined && curr._thisObj !== undefined) resolvedThisObj = curr._thisObj;
+			if (resolvedRef === undefined && curr._ref !== undefined) resolvedRef = { ...curr._ref };
+			curr = curr.parentNode;
+		}
+	}
+
+	if (resolvedThisObj === undefined) resolvedThisObj = scanObj.thisObj;
+	if (resolvedRef === undefined) resolvedRef = scanObj.extendVars;
+
 	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each'))) {
 		const template = document.createElement('TEMPLATE');
 		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each')) && ['as', 'index'].includes(attr.name)));
 		attrs.forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
 		node.parentNode.insertBefore(template, node);
 		template.content.appendChild(node);
-		template._ref = node._ref;
+		template._ref = resolvedRef;
+		template._thisObj = resolvedThisObj; // Crucial fix: Propagate context
+		_scanTree(template, scanObj);
 		return;
 	}
 	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each'))) {
@@ -329,7 +346,8 @@ export const _scanTree = (node, scanObj = {}) => {
 		}
 		Array.from(node.content.childNodes).forEach(child => template.content.appendChild(child));
 		node.content.appendChild(template);
-		template._ref = node._ref;
+		template._ref = resolvedRef;
+		template._thisObj = resolvedThisObj; // Crucial fix: Propagate context
 	}
 
 	if (node.tagName === 'IMG' && (node.hasAttribute('src') || node.hasAttribute('_src') || node.hasAttribute('$src'))) {
@@ -362,7 +380,7 @@ export const _scanTree = (node, scanObj = {}) => {
 	}
 	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
 
-	_parseNode(node, scanObj);
+	_parseNode(node, { ...scanObj });
 
 	const nodes = [...(node.childNodes || [])];
 	const nextScanObj = { thisObj: scanObj.thisObj, extendVars: { ...node._ref } };

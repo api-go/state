@@ -470,6 +470,18 @@ const _scanTree = (node, scanObj = {}) => {
     });
     node._stTranslated = true;
   }
+  let resolvedThisObj = node._thisObj;
+  let resolvedRef = node._ref;
+  if (resolvedThisObj === void 0 || resolvedRef === void 0) {
+    let curr = node;
+    while (curr && (resolvedThisObj === void 0 || resolvedRef === void 0)) {
+      if (resolvedThisObj === void 0 && curr._thisObj !== void 0) resolvedThisObj = curr._thisObj;
+      if (resolvedRef === void 0 && curr._ref !== void 0) resolvedRef = { ...curr._ref };
+      curr = curr.parentNode;
+    }
+  }
+  if (resolvedThisObj === void 0) resolvedThisObj = scanObj.thisObj;
+  if (resolvedRef === void 0) resolvedRef = scanObj.extendVars;
   if (node.tagName !== "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("$each") || node.hasAttribute("st-if") || node.hasAttribute("st-each"))) {
     const template = document.createElement("TEMPLATE");
     const attrs = Array.from(node.attributes).filter((attr) => ["$if", "$each", "st-if", "st-each"].includes(attr.name) || (node.hasAttribute("$each") || node.hasAttribute("st-each")) && ["as", "index"].includes(attr.name));
@@ -479,7 +491,9 @@ const _scanTree = (node, scanObj = {}) => {
     });
     node.parentNode.insertBefore(template, node);
     template.content.appendChild(node);
-    template._ref = node._ref;
+    template._ref = resolvedRef;
+    template._thisObj = resolvedThisObj;
+    _scanTree(template, scanObj);
     return;
   }
   if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each"))) {
@@ -496,7 +510,8 @@ const _scanTree = (node, scanObj = {}) => {
     }
     Array.from(node.content.childNodes).forEach((child) => template.content.appendChild(child));
     node.content.appendChild(template);
-    template._ref = node._ref;
+    template._ref = resolvedRef;
+    template._thisObj = resolvedThisObj;
   }
   if (node.tagName === "IMG" && (node.hasAttribute("src") || node.hasAttribute("_src") || node.hasAttribute("$src"))) {
     const imgNode = node;
@@ -526,7 +541,7 @@ const _scanTree = (node, scanObj = {}) => {
     Object.assign(node._ref, node._refExt);
   }
   if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
-  _parseNode(node, scanObj);
+  _parseNode(node, { ...scanObj });
   const nodes = [...node.childNodes || []];
   const nextScanObj = { thisObj: scanObj.thisObj, extendVars: { ...node._ref } };
   nodes.forEach((child) => {
