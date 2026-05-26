@@ -1,6 +1,6 @@
 // test/dom.test.js
-import { RefreshState, $, $$ } from '@web/state';
-import { NewState } from '@web/state';
+import { RefreshState, $, $$ } from '../src/index.js';
+import { NewState } from '../src/index.js';
 
 export async function testDom() {
     console.log('Testing dom.js...');
@@ -65,15 +65,16 @@ export async function testDom() {
     if (items.length !== 1 || items[0].textContent !== 'C') throw new Error('$each removal failed');
 
     // 4. Two-way binding (bind)
+    console.log('Testing $bind...');
     document.body.innerHTML = `<input id="input-test" $bind="state.val">`;
-    state.val = 'initial';
+    window.state = NewState({ val: 'initial' });
     RefreshState(document.documentElement);
     await wait();
     const input = $('#input-test');
     if (input.value !== 'initial') throw new Error('$bind initial value failed');
     
     input.value = 'changed';
-    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     if (state.val !== 'changed') throw new Error('$bind write-back failed');
 
     // 5. Unbinding cleanup (mock check)
@@ -83,8 +84,53 @@ export async function testDom() {
     state.show = true;
     const ifNode = $('#if-content');
     state.show = false; // Trigger _unbindTree via _clearRenderedNodes -> remove() -> MutationObserver (or manual in some cases)
-    // Actually MutationObserver handles _unbindTree in index.js.
     
+    // 6. Double evaluation ($$ prefix)
+    console.log('Testing double evaluation ($$)...');
+    document.body.innerHTML = `
+        <div id="double-eval-root">
+            <div id="inner-node" $$if="state.innerExp">Dynamic Visible</div>
+        </div>
+    `;
+    const doubleState = NewState({ 
+        innerExp: 'state.innerShow',
+        innerShow: false 
+    });
+    window.state = doubleState;
+    document.documentElement._thisObj = doubleState;
+    
+    RefreshState(document.documentElement);
+    await wait();
+    if ($('#inner-node')) throw new Error('$$if failed: should be hidden initially');
+    
+    console.log('Enabling inner node...');
+    doubleState.innerShow = true;
+    RefreshState(document.documentElement);
+    await wait();
+    const inner = $('#inner-node');
+    if (!inner) throw new Error('$$if failed: should be visible after innerShow=true');
+    console.log('Inner node visible:', inner.textContent);
+
+    // 7. Nested $$if
+    console.log('Testing nested $$if...');
+    document.body.innerHTML = `
+        <div id="nested-double-test">
+            <template $if="state.outer">
+                <div id="nested-inner" $$if="state.innerExp">Nested Visible</div>
+            </template>
+        </div>
+    `;
+    doubleState.outer = true;
+    doubleState.innerShow = false;
+    RefreshState(document.documentElement);
+    await wait();
+    if ($('#nested-inner')) throw new Error('nested $$if failed: should be hidden initially');
+
+    doubleState.innerShow = true;
+    RefreshState(document.documentElement);
+    await wait();
+    if (!$('#nested-inner')) throw new Error('nested $$if failed: should be visible after update');
+
     console.log('dom.js tests passed');
     return true;
 }

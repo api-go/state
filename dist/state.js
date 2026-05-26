@@ -198,7 +198,8 @@ if (typeof document !== "undefined") {
     const originalSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function(name, value) {
       if (!name.startsWith("$")) return originalSetAttribute.call(this, name, value);
-      return originalSetAttribute.call(this, "st-" + name.substring(1), value);
+      const prefix = name.startsWith("$$") ? "st-st-" : "st-";
+      return originalSetAttribute.call(this, prefix + name.substring(name.startsWith("$$") ? 2 : 1), value);
     };
   }
 }
@@ -216,6 +217,12 @@ function _updateBinding(binding) {
   if (window.__perfTrace) window.__perfTrace.evalCount++;
   const evalStart = window.__perfTrace ? performance.now() : 0;
   let result = binding.exp ? binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null : binding.tpl;
+  if (binding.exp === 2 && typeof result === "string") {
+    try {
+      result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null);
+    } catch (e) {
+    }
+  }
   if (window.__perfTrace) window.__perfTrace.evalTotal += performance.now() - evalStart;
   setActiveBinding(null);
   if (binding.prop) {
@@ -406,18 +413,21 @@ const _parseNode = (node, scanObj) => {
   }
   if (hasBindings) return;
   let attrs = [];
+  const triggerAttrs = ["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"];
   if (node.tagName === "TEMPLATE") {
-    ["$if", "$each", "st-if", "st-each"].forEach((n) => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
+    triggerAttrs.forEach((n) => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
   } else {
-    attrs = Array.from(node.attributes).filter((a) => (a.name.startsWith("$") || a.name.startsWith("st-")) && !["$if", "$each", "st-if", "st-each"].includes(a.name) || a.name.includes("."));
+    attrs = Array.from(node.attributes).filter((a) => (a.name.startsWith("$") || a.name.startsWith("st-")) && !triggerAttrs.includes(a.name) || a.name.includes("."));
   }
   if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
   if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
   if (!node._ref) node._ref = scanObj.extendVars || {};
   node._states = /* @__PURE__ */ new Set();
   attrs.forEach((attr) => {
-    const exp = attr.name.startsWith("$") || attr.name.startsWith("st-");
-    const realAttrName = exp ? attr.name.slice(attr.name.startsWith("$") ? 1 : 3) : attr.name;
+    let exp = 0;
+    if (attr.name.startsWith("$$") || attr.name.startsWith("st-st-")) exp = 2;
+    else if (attr.name.startsWith("$") || attr.name.startsWith("st-")) exp = 1;
+    const realAttrName = exp === 2 ? attr.name.startsWith("$$") ? attr.name.slice(2) : attr.name.slice(6) : exp === 1 ? attr.name.startsWith("$") ? attr.name.slice(1) : attr.name.slice(3) : attr.name;
     let tpl = attr.value;
     node.removeAttribute(attr.name);
     if (realAttrName.startsWith(".")) _initBinding({ node, prop: realAttrName.split("."), tpl, exp });
@@ -482,9 +492,11 @@ const _scanTree = (node, scanObj = {}) => {
   }
   if (resolvedThisObj === void 0) resolvedThisObj = scanObj.thisObj;
   if (resolvedRef === void 0) resolvedRef = scanObj.extendVars;
-  if (node.tagName !== "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("$each") || node.hasAttribute("st-if") || node.hasAttribute("st-each"))) {
+  const triggerAttrs = ["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"];
+  const eachAttrs = ["$each", "st-each", "$$each", "st-st-each"];
+  if (node.tagName !== "TEMPLATE" && triggerAttrs.some((t) => node.hasAttribute(t))) {
     const template = document.createElement("TEMPLATE");
-    const attrs = Array.from(node.attributes).filter((attr) => ["$if", "$each", "st-if", "st-each"].includes(attr.name) || (node.hasAttribute("$each") || node.hasAttribute("st-each")) && ["as", "index"].includes(attr.name));
+    const attrs = Array.from(node.attributes).filter((attr) => triggerAttrs.includes(attr.name) || eachAttrs.some((t) => node.hasAttribute(t)) && ["as", "index"].includes(attr.name));
     attrs.forEach((attr) => {
       template.setAttribute(attr.name, attr.value);
       node.removeAttribute(attr.name);
@@ -496,13 +508,13 @@ const _scanTree = (node, scanObj = {}) => {
     _scanTree(template, scanObj);
     return;
   }
-  if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each"))) {
+  if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if") || node.hasAttribute("$$if") || node.hasAttribute("st-st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each") || node.hasAttribute("$$each") || node.hasAttribute("st-st-each"))) {
     const template = document.createElement("TEMPLATE");
-    const attrs = Array.from(node.attributes).filter((attr2) => ["$if", "$each", "st-if", "st-each"].includes(attr2.name));
+    const attrs = Array.from(node.attributes).filter((attr2) => triggerAttrs.includes(attr2.name));
     const attr = attrs[attrs.length - 1];
     template.setAttribute(attr.name, attr.value);
     node.removeAttribute(attr.name);
-    if (attr.name === "$each" || attr.name === "st-each") {
+    if (eachAttrs.includes(attr.name)) {
       Array.from(node.attributes).filter((attr2) => ["as", "index"].includes(attr2.name)).forEach((attr2) => {
         template.setAttribute(attr2.name, attr2.value);
         node.removeAttribute(attr2.name);

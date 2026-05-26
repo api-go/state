@@ -34,10 +34,11 @@ export async function testPriority() {
     const state = { outerVal: 'hello' };
     const outer = document.createElement('div');
     outer.id = 'outer';
+    outer._thisObj = state; // Rule: Set _thisObj on root before scanning if not in document
     outer.innerHTML = `<val-comp id="val-node" $.val="this.outerVal"></val-comp>`;
-    document.body.appendChild(outer);
     
     RefreshState(outer, { thisObj: state });
+    document.body.appendChild(outer);
 
     if (capturedVal !== 'hello') {
         throw new Error(`this. replacement failed: capturedVal was ${capturedVal}, expected 'hello'`);
