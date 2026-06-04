@@ -32,7 +32,7 @@ test('modular unit tests and benchmark', async ({ page }) => {
         const items = [];
         for(let i=0; i<1000; i++) items.push({val: 'item ' + i});
         window.state.benchItems = items;
-        const { RefreshState } = await import('@web/state');
+        const { RefreshState } = await import('@apigo.cc/state');
         RefreshState(document.documentElement);
         return performance.now() - start;
     });
@@ -51,7 +51,7 @@ test('modular unit tests and benchmark', async ({ page }) => {
 
     // Extreme Data Test
     await page.evaluate(async () => {
-        const { RefreshState } = await import('@web/state');
+        const { RefreshState } = await import('@apigo.cc/state');
         document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
         window.state.extreme = null;
         RefreshState(document.getElementById('extreme'));
