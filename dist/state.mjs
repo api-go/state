@@ -473,7 +473,6 @@ const _scanTree = (node, scanObj = {}) => {
     return;
   }
   if (node.nodeType !== 1) return;
-  if (node.isConnected) node._stScanned = true;
   if (!node._stTranslated) {
     Array.from(node.attributes).forEach((attr) => {
       if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
@@ -508,9 +507,11 @@ const _scanTree = (node, scanObj = {}) => {
     template.content.appendChild(node);
     template._ref = resolvedRef;
     template._thisObj = resolvedThisObj;
+    delete node._stScanned;
     _scanTree(template, scanObj);
     return;
   }
+  if (node.isConnected) node._stScanned = true;
   if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if") || node.hasAttribute("$$if") || node.hasAttribute("st-st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each") || node.hasAttribute("$$each") || node.hasAttribute("st-st-each"))) {
     const template = document.createElement("TEMPLATE");
     const attrs = Array.from(node.attributes).filter((attr2) => triggerAttrs.includes(attr2.name));
@@ -693,6 +694,7 @@ if (typeof document !== "undefined") {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((newNode) => {
           if (newNode.isConnected && newNode.nodeType === 1 && !newNode._stScanned) {
+            newNode._stScanned = true;
             _scanTree(newNode);
           }
         });
