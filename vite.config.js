@@ -6,19 +6,29 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.js'),
-      name: 'State',
-      formats: ['es']
+      name: 'ApigoState', // UMD 内部名称，逻辑主要靠 globalThis 挂载
+      formats: ['umd', 'es']
     },
     rollupOptions: {
       output: [
         {
-          format: 'es',
-          entryFileNames: 'state.js',
-          minifyInternalExports: false
+          format: 'umd',
+          name: 'ApigoState',
+          entryFileNames: 'state.js'
+        },
+        {
+          format: 'umd',
+          name: 'ApigoState',
+          entryFileNames: 'state.min.js',
+          plugins: [terser()]
         },
         {
           format: 'es',
-          entryFileNames: 'state.min.js',
+          entryFileNames: 'state.mjs'
+        },
+        {
+          format: 'es',
+          entryFileNames: 'state.min.mjs',
           plugins: [terser()]
         }
       ]

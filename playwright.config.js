@@ -8,7 +8,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npx vite --port 8081 --host 127.0.0.1',
-    url: 'http://127.0.0.1:8081',
+    url: 'http://127.0.0.1:8081/test/index.html',
     timeout: 180000,
     reuseExistingServer: !process.env.CI,
   },
