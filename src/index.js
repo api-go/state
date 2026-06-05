@@ -29,6 +29,7 @@ if (typeof document !== 'undefined') {
             mutations.forEach(mutation => {
                 mutation.addedNodes.forEach(newNode => {
                     if (newNode.isConnected && newNode.nodeType === 1 && !newNode._stScanned) {
+                        newNode._stScanned = true;
                         _scanTree(newNode);
                     }
                 });

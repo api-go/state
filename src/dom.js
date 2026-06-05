@@ -308,7 +308,6 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true; return;
 	}
 	if (node.nodeType !== 1) return;
-	if (node.isConnected) node._stScanned = true;
 
 	if (!node._stTranslated) {
 		Array.from(node.attributes).forEach(attr => {
@@ -345,9 +344,12 @@ export const _scanTree = (node, scanObj = {}) => {
 		template.content.appendChild(node);
 		template._ref = resolvedRef;
 		template._thisObj = resolvedThisObj; // Crucial fix: Propagate context
+		delete node._stScanned;
 		_scanTree(template, scanObj);
 		return;
 	}
+	if (node.isConnected) node._stScanned = true;
+
 	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if') || node.hasAttribute('$$if') || node.hasAttribute('st-st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each'))) {
 		const template = document.createElement('TEMPLATE');
 		const attrs = Array.from(node.attributes).filter(attr => triggerAttrs.includes(attr.name));
