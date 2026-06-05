@@ -473,7 +473,7 @@ const _scanTree = (node, scanObj = {}) => {
     return;
   }
   if (node.nodeType !== 1) return;
-  node._stScanned = true;
+  if (node.isConnected) node._stScanned = true;
   if (!node._stTranslated) {
     Array.from(node.attributes).forEach((attr) => {
       if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
@@ -693,7 +693,6 @@ if (typeof document !== "undefined") {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((newNode) => {
           if (newNode.isConnected && newNode.nodeType === 1 && !newNode._stScanned) {
-            newNode._stScanned = true;
             _scanTree(newNode);
           }
         });

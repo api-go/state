@@ -308,7 +308,7 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true; return;
 	}
 	if (node.nodeType !== 1) return;
-	node._stScanned = true;
+	if (node.isConnected) node._stScanned = true;
 
 	if (!node._stTranslated) {
 		Array.from(node.attributes).forEach(attr => {
