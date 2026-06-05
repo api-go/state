@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v1.0.15 (2026-06-05)
+
+### 修复
+- **挂载节点绑定失效**: 修复了在离线/内存中提早调用 `_scanTree` 时子节点被打上 `_stScanned` 标记，导致节点被真正挂载（`isConnected`）时因 `_stScanned` 为真而被 MutationObserver 跳过，从而使其上的表达式绑定未被计算的 Bug。现在只有当节点真正 connected 时才记录 `_stScanned = true`。
+
 ## v1.0.14 (2026-06-05)
 
 ### 修复
