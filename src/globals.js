@@ -29,5 +29,11 @@ export const LocalStorage = NewState({}, k => Util.safeJson(localStorage.getItem
     v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, newStr)
 })
 
+// 核心全局状态机
+export const State = NewState({
+    exitBlocks: 0 // 默认值
+});
+
 globalThis.Hash = Hash;
 globalThis.LocalStorage = LocalStorage;
+globalThis.State = State;
