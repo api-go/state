@@ -76,7 +76,7 @@ export function _updateBinding(binding) {
 				if (typeof result === 'object' && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
 				const lo = o[lk];
 				if (typeof lo === 'object' && lo != null && lo.__watch) Object.assign(lo, result);
-				else o[lk] = result;
+				else { if (o[lk] !== result) o[lk] = result; }
 			} else if (typeof result === 'object' && result != null && !Array.isArray(result)) {
 				Object.assign(o, result);
 			}
@@ -308,6 +308,7 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true; return;
 	}
 	if (node.nodeType !== 1) return;
+	node._stScanned = true;
 
 	if (!node._stTranslated) {
 		Array.from(node.attributes).forEach(attr => {

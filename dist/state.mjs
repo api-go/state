@@ -240,7 +240,9 @@ function _updateBinding(binding) {
         if (typeof result === "object" && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
         const lo = o[lk];
         if (typeof lo === "object" && lo != null && lo.__watch) Object.assign(lo, result);
-        else o[lk] = result;
+        else {
+          if (o[lk] !== result) o[lk] = result;
+        }
       } else if (typeof result === "object" && result != null && !Array.isArray(result)) {
         Object.assign(o, result);
       }
@@ -471,6 +473,7 @@ const _scanTree = (node, scanObj = {}) => {
     return;
   }
   if (node.nodeType !== 1) return;
+  node._stScanned = true;
   if (!node._stTranslated) {
     Array.from(node.attributes).forEach((attr) => {
       if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
@@ -689,7 +692,10 @@ if (typeof document !== "undefined") {
     new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((newNode) => {
-          if (newNode.isConnected) _scanTree(newNode);
+          if (newNode.isConnected && newNode.nodeType === 1 && !newNode._stScanned) {
+            newNode._stScanned = true;
+            _scanTree(newNode);
+          }
         });
         mutation.removedNodes.forEach((oldNode) => _unbindTree(oldNode));
       });
