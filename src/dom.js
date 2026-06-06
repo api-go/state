@@ -28,8 +28,7 @@ if (typeof document !== 'undefined') {
 		const originalSetAttribute = Element.prototype.setAttribute;
 		Element.prototype.setAttribute = function (name, value) {
 			if (!name.startsWith('$')) return originalSetAttribute.call(this, name, value);
-			const prefix = name.startsWith('$$') ? 'st-st-' : 'st-';
-			return originalSetAttribute.call(this, prefix + name.substring(name.startsWith('$$') ? 2 : 1), value);
+			return originalSetAttribute.call(this, 'st-' + name.substring(1), value);
 		};
 	}
 }
@@ -50,15 +49,12 @@ export function _updateBinding(binding) {
 	if (!node.isConnected && node.tagName !== 'TEMPLATE') return;
 
 	setActiveBinding(binding);
-	if (window.__perfTrace) window.__perfTrace.evalCount++;
-	const evalStart = window.__perfTrace ? performance.now() : 0;
 	let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
-
+	
+	// 增量 3: 支持 $$ 前缀的双重评估
 	if (binding.exp === 2 && typeof result === 'string') {
 		try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
 	}
-
-	if (window.__perfTrace) window.__perfTrace.evalTotal += (performance.now() - evalStart);
 	setActiveBinding(null);
 
 	if (binding.prop) {
@@ -71,9 +67,10 @@ export function _updateBinding(binding) {
 			if (typeof o !== 'object') break;
 		}
 		if (typeof o === 'object' && o !== null) {
+			const resultIsObject = typeof result === 'object' && result != null && !Array.isArray(result);
 			const lk = prop[prop.length - 1];
 			if (lk) {
-				if (typeof result === 'object' && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
+				if (resultIsObject && o[lk] == null) o[lk] = {};
 				const lo = o[lk];
 				if (typeof lo === 'object' && lo != null && lo.__watch) Object.assign(lo, result);
 				else { if (o[lk] !== result) o[lk] = result; }
@@ -87,13 +84,11 @@ export function _updateBinding(binding) {
 			if (result) {
 				if (!node._renderedNodes || node._renderedNodes.length === 0) {
 					node._children.forEach(child => {
-						child._stManaged = true;
 						node.parentNode.insertBefore(child, node);
 						child._ref = { ...node._ref };
+						child._thisObj = node._thisObj;
 					});
 					node._renderedNodes = [node._children];
-				} else {
-					node._renderedNodes[0].forEach(child => _scanTree(child, { thisObj: node._thisObj, extendVars: child._ref }));
 				}
 			} else {
 				_clearRenderedNodes(node);
@@ -103,7 +98,7 @@ export function _updateBinding(binding) {
 			if (result && typeof result === 'object') {
 				const asName = node.getAttribute('as') || 'item';
 				const indexName = node.getAttribute('index') || 'index';
-				const keyName = node.getAttribute('key');
+				const keyName = node.getAttribute('key'); // 增量 2: 支持 key
 				let keys, getVal;
 				if (result instanceof Map) {
 					keys = Array.from(result.keys()); getVal = k => result.get(k);
@@ -123,43 +118,21 @@ export function _updateBinding(binding) {
 				keys.forEach((k, i) => {
 					const item = getVal(k);
 					const rawKey = keyName ? (item && typeof item === 'object' ? item[keyName] : item) : k;
-					// Safety: Handle potential duplicate keys or undefined keys
-					const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_fallback_${i}_${Math.random()}` : rawKey;
+					const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_${i}` : rawKey;
 
 					let existingNodes = node._keyedNodes.get(keyVal);
 
 					if (existingNodes) {
-						// Reuse existing nodes
 						node._keyedNodes.delete(keyVal);
 						existingNodes.forEach(child => {
-							if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.reuseCount++;
-							let scopeChanged = false;
-							for (let key in node._ref) {
-								if (key === asName || key === indexName) continue;
-								if (child._ref[key] !== node._ref[key]) {
-									child._ref[key] = node._ref[key];
-									scopeChanged = true;
-								}
-							}
-							const indexChanged = child._ref[indexName] !== k;
-							if (indexChanged) child._ref[indexName] = k;
-
-							if (child._ref[asName] !== item || scopeChanged) {
-								child._ref[asName] = item;
-								if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.scanCount++;
-								_scanTree(child, { thisObj: node._thisObj, extendVars: child._ref });
-							} else if (node.parentNode.lastChild !== child) {
-								// Just move to the end to maintain order
-								if (window.__statePerformanceTelemetry) window.__statePerformanceTelemetry.moveCount++;
-								node.parentNode.insertBefore(child, node);
-							}
+							child._ref[indexName] = k;
+							child._ref[asName] = item;
+							_scanTree(child);
 						});
 					} else {
-						// Create new nodes
 						existingNodes = [];
 						node._children.forEach(child => {
 							const cloned = child.cloneNode(true);
-							cloned._stManaged = true;
 							cloned._ref = { ...node._ref, [indexName]: k, [asName]: item };
 							cloned._thisObj = node._thisObj;
 							node.parentNode.insertBefore(cloned, node);
@@ -168,18 +141,13 @@ export function _updateBinding(binding) {
 					}
 					newKeyedNodes.set(keyVal, existingNodes);
 					currentRenderedNodes.push(existingNodes);
-					// Ensure DOM order
-					existingNodes.forEach(child => node.parentNode.insertBefore(child, node));
 				});
 
-				// Cleanup old nodes
 				node._keyedNodes.forEach(nodes => nodes.forEach(child => { _clearRenderedNodes(child); child.remove(); }));
 				node._keyedNodes = newKeyedNodes;
 				node._renderedNodes = currentRenderedNodes;
 			} else {
 				_clearRenderedNodes(node);
-				if (node._keyedNodes) node._keyedNodes.forEach(nodes => nodes.forEach(child => child.remove()));
-				node._keyedNodes = new Map();
 				node._renderedNodes = [];
 			}
 		} else if (attr === 'bind') {
@@ -192,7 +160,7 @@ export function _updateBinding(binding) {
 			} else if (node.type === 'radio') {
 				if (node.checked !== (node.value === String(result ?? ''))) node.checked = (node.value === String(result ?? ''));
 			} else if ('value' in node && node.type !== 'file') {
-				setTimeout(() => { if (node.value !== String(result ?? '')) node.value = result; });
+				Promise.resolve().then(() => { if (node.value !== String(result ?? '')) node.value = result; });
 			} else if (node.isContentEditable) {
 				if (node.innerHTML !== String(result ?? '')) node.innerHTML = result;
 			}
@@ -218,12 +186,11 @@ export const _initBinding = (binding) => {
 };
 
 export const _parseNode = (node, scanObj) => {
-	let hasBindings = false;
 	if (node._bindings) {
 		node._states = new Set();
 		node._bindings.forEach(b => _updateBinding({ node, ...b }));
 		if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
-		hasBindings = true;
+		return;
 	}
 
 	if (Component.exists(node.tagName) && !node._componentInitialized) {
@@ -251,14 +218,11 @@ export const _parseNode = (node, scanObj) => {
 		if (!node._renderedNodes) node._renderedNodes = [];
 	}
 
-	if (hasBindings) return;
-
 	let attrs = [];
-	const triggerAttrs = ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'];
 	if (node.tagName === 'TEMPLATE') {
-		triggerAttrs.forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
+		['$if', '$each', 'st-if', 'st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
 	} else {
-		attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !triggerAttrs.includes(a.name) || a.name.includes('.'));
+		attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each'].includes(a.name) || a.name.includes('.'));
 	}
 
 	if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
@@ -283,7 +247,7 @@ export const _parseNode = (node, scanObj) => {
 			node.addEventListener(eventName, (e) => _runCode(tpl, { event: e, thisNode: node, ...(e.detail || {}) }, scanObj.thisObj || node, node._ref || {}));
 		} else {
 			if (realAttrName === 'bind') {
-				node.addEventListener(node.tagName === 'TEXTAREA' || node.isContentEditable || node.type === 'text' || node.type === 'password' ? 'input' : 'change', (e) => {
+				node.addEventListener(['textarea', 'text', 'password'].includes(node.type || 'text') || node.isContentEditable ? 'input' : 'change', (e) => {
 					let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : e.target.files || e.target.value || e.detail);
 					setNoWriteBack(node); setDisableRunCodeError(true);
 					if (node.type === 'checkbox' && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
@@ -301,12 +265,6 @@ export const _parseNode = (node, scanObj) => {
 };
 
 export const _scanTree = (node, scanObj = {}) => {
-	if (node.nodeType === 3) {
-		if (node._stTranslated) return;
-		const translated = _translate(node.textContent);
-		if (translated !== node.textContent) node.textContent = translated;
-		node._stTranslated = true; return;
-	}
 	if (node.nodeType !== 1) return;
 
 	if (!node._stTranslated) {
@@ -319,50 +277,18 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true;
 	}
 
-	let resolvedThisObj = node._thisObj;
-	let resolvedRef = node._ref;
-
-	if (resolvedThisObj === undefined || resolvedRef === undefined) {
-		let curr = node;
-		while (curr && (resolvedThisObj === undefined || resolvedRef === undefined)) {
-			if (resolvedThisObj === undefined && curr._thisObj !== undefined) resolvedThisObj = curr._thisObj;
-			if (resolvedRef === undefined && curr._ref !== undefined) resolvedRef = { ...curr._ref };
-			curr = curr.parentNode;
-		}
-	}
-
-	if (resolvedThisObj === undefined) resolvedThisObj = scanObj.thisObj;
-	if (resolvedRef === undefined) resolvedRef = scanObj.extendVars;
-
-	const triggerAttrs = ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'];
-	const eachAttrs = ['$each', 'st-each', '$$each', 'st-st-each'];
-	if (node.tagName !== 'TEMPLATE' && triggerAttrs.some(t => node.hasAttribute(t))) {
+	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each'))) {
 		const template = document.createElement('TEMPLATE');
-		const attrs = Array.from(node.attributes).filter(attr => triggerAttrs.includes(attr.name) || (eachAttrs.some(t => node.hasAttribute(t)) && ['as', 'index'].includes(attr.name)));
-		attrs.forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
-		node.parentNode.insertBefore(template, node);
-		template.content.appendChild(node);
-		template._ref = resolvedRef;
-		template._thisObj = resolvedThisObj; // Crucial fix: Propagate context
-		delete node._stScanned;
-		_scanTree(template, scanObj);
-		return;
-	}
-	if (node.isConnected) node._stScanned = true;
-
-	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if') || node.hasAttribute('$$if') || node.hasAttribute('st-st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each'))) {
-		const template = document.createElement('TEMPLATE');
-		const attrs = Array.from(node.attributes).filter(attr => triggerAttrs.includes(attr.name));
+		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name));
 		const attr = attrs[attrs.length - 1];
 		template.setAttribute(attr.name, attr.value);
 		node.removeAttribute(attr.name);
-		if (eachAttrs.includes(attr.name)) {
+		if (attr.name === '$each' || attr.name === 'st-each') {
 			Array.from(node.attributes).filter(attr => ['as', 'index'].includes(attr.name)).forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
 		}
 		Array.from(node.content.childNodes).forEach(child => template.content.appendChild(child));
 		node.content.appendChild(template);
-		template._ref = resolvedRef;
-		template._thisObj = resolvedThisObj; // Crucial fix: Propagate context
+		template._ref = node._ref;
 	}
 
 	if (node.tagName === 'IMG' && (node.hasAttribute('src') || node.hasAttribute('_src') || node.hasAttribute('$src'))) {
@@ -385,23 +311,19 @@ export const _scanTree = (node, scanObj = {}) => {
 		while (curr && curr._thisObj === undefined) curr = curr.parentNode;
 		scanObj.thisObj = curr ? curr._thisObj : null;
 	}
+
 	if (node._ref === undefined) {
 		let curr = node;
 		while (curr && curr._ref === undefined) curr = curr.parentNode;
 		node._ref = curr ? { ...curr._ref } : {};
 	}
-	if (node._refExt !== undefined) {
-		Object.assign(node._ref, node._refExt);
-	}
+	// 增量 4: 支持 _refExt 上下文注入
 	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
 
 	_parseNode(node, { ...scanObj });
 
 	const nodes = [...(node.childNodes || [])];
-	const nextScanObj = { thisObj: scanObj.thisObj, extendVars: { ...node._ref } };
-	nodes.forEach(child => {
-		if (!child._stManaged) _scanTree(child, nextScanObj);
-	});
+	nodes.forEach(child => _scanTree(child, { thisObj: scanObj.thisObj, extendVars: { ...node._ref } }));
 };
 
 export const _unbindTree = (node) => {

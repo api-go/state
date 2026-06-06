@@ -5,33 +5,34 @@ export { $, $$, RefreshState, SetTranslator, _scanTree, _unbindTree } from './do
 export { Util } from './utils.js';
 export { Hash, LocalStorage, State } from './globals.js';
 
-import { NewState } from './observer.js';
 import { Component } from './component.js';
-import { $, $$, RefreshState, SetTranslator } from './dom.js';
+import { _scanTree, _unbindTree, $, $$, RefreshState, SetTranslator } from './dom.js';
+import { LocalStorage, Hash, State } from './globals.js';
+import { NewState, onNotifyUpdate, setActiveBinding } from './observer.js';
 import { Util } from './utils.js';
-import { Hash, LocalStorage, State } from './globals.js';
-import { _scanTree, _unbindTree } from './dom.js';
+import { _runCode, _returnCode } from './core.js';
 
 const ApigoState = {
-    NewState, Component, $, $$, RefreshState, SetTranslator, Util, Hash, LocalStorage, State
+    NewState, Component, $, $$, RefreshState, SetTranslator, _scanTree, _unbindTree, Util, Hash, LocalStorage, State,
+    _runCode, _returnCode, onNotifyUpdate, setActiveBinding
 };
 
-// 挂载到全局，支持 UMD 直接访问
-if (typeof globalThis !== 'undefined') {
-    Object.assign(globalThis, ApigoState);
-    globalThis.ApigoState = ApigoState;
+if (typeof window !== 'undefined') {
+    window.ApigoState = ApigoState;
 }
 
 if (typeof document !== 'undefined') {
     const init = () => {
-        Component._initPending();
+        const htmlNode = document.documentElement;
+        if (!htmlNode.hasAttribute('$data-bs-theme') && !htmlNode.hasAttribute('data-bs-theme')) {
+            htmlNode.setAttribute('$data-bs-theme', "LocalStorage.darkMode?'dark':'light'");
+        }
+
+        // 灵魂逻辑：MutationObserver 捕获所有异步 DOM 变化
         new MutationObserver(mutations => {
             mutations.forEach(mutation => {
                 mutation.addedNodes.forEach(newNode => {
-                    if (newNode.isConnected && newNode.nodeType === 1 && !newNode._stScanned) {
-                        newNode._stScanned = true;
-                        _scanTree(newNode);
-                    }
+                    if (newNode.isConnected) _scanTree(newNode);
                 });
                 mutation.removedNodes.forEach(oldNode => _unbindTree(oldNode));
             });

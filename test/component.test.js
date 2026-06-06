@@ -1,31 +1,25 @@
 // test/component.test.js
-import { Component } from '../src/component.js';
-import { RefreshState, $ } from '../src/dom.js';
-
-export async function testComponent() {
+window.testComponent = async function() {
+    const { Component, RefreshState, $ } = ApigoState;
     console.log('Testing component.js...');
     
-    // 1. Register component FIRST
-    Component.register('MY-COMP', (node) => {
-        // setup
-    });
-
-    // 2. Add template and instance
-    document.body.innerHTML = `
-        <template component="MY-COMP">
-            <div class="comp-inner">Component Content</div>
-        </template>
-        <my-comp id="comp-instance"></my-comp>
-    `;
+    // 1. Register component
+    Component.register('TestComp', container => {
+        container.state.msg = 'Component Content';
+    }, document.createRange().createContextualFragment('<div id="comp-inner" $text="this.state.msg"></div>').firstChild);
     
-    // 3. Scan
+    // 2. Render component
+    document.body.innerHTML = '<TestComp id="comp-inst"></TestComp>';
     RefreshState(document.documentElement);
     
-    // 4. Wait a bit for any async DOM updates
-    await new Promise(r => setTimeout(r, 100));
+    const instance = $('#comp-inst');
+    if (!instance) throw new Error('Component instance not found');
     
-    const instance = $('#comp-instance');
-    if (!instance.innerHTML.includes('Component Content')) {
+    // Wait for internal scan
+    await new Promise(r => setTimeout(r, 50));
+    
+    const inner = $('#comp-inner');
+    if (!inner || inner.textContent !== 'Component Content') {
         console.log('Current instance innerHTML:', instance.innerHTML);
         throw new Error('Component rendering failed');
     }

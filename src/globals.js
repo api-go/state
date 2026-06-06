@@ -9,15 +9,17 @@ export const Hash = NewState({}, k => Util.safeJson(_hashParams.get(k)), (k, v) 
     const newStr = v === undefined ? undefined : JSON.stringify(v)
     if (oldStr === newStr || (oldStr === null && newStr === undefined)) return
     v === undefined ? _hashParams.delete(k) : _hashParams.set(k, newStr)
+    
+    // 增量 5: 立即同步 Hash 字符串，确保响应式实时可见
     window.location.hash = '#' + _hashParams.toString()
 })
 
 if (typeof window !== 'undefined') {
     window.addEventListener('hashchange', () => {
-        const oldHashParams = _hashParams
-        _hashParams = new URLSearchParams(window.location.hash?.substring(1) || '')
-        _hashParams.forEach((v, k) => { if (oldHashParams.get(k) !== v) Hash[k] = Util.safeJson(v) })
-        oldHashParams.forEach((v, k) => { if (_hashParams.get(k) === undefined) Hash[k] = undefined })
+        const newParams = new URLSearchParams(window.location.hash?.substring(1) || '')
+        const keys = new Set([..._hashParams.keys(), ...newParams.keys()])
+        _hashParams = newParams
+        keys.forEach(k => Hash[k] = Hash[k]) // 触发更新
     })
 }
 
@@ -29,9 +31,9 @@ export const LocalStorage = NewState({}, k => Util.safeJson(localStorage.getItem
     v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, newStr)
 })
 
-// 核心全局状态机
+// 增量：显式定义 State 单例
 export const State = NewState({
-    exitBlocks: 0 // 默认值
+    exitBlocks: 0
 });
 
 globalThis.Hash = Hash;

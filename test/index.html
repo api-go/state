@@ -1,35 +1,39 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>State.js Modular Tests</title>
-    <script type="importmap">
-    {
-        "imports": {
-            "@apigo.cc/state": "../src/index.js"
-        }
-    }
-    </script>
+    <title>State.js Synchronous Tests</title>
+    <!-- 同步加载打包好的 UMD 库 -->
+    <script src="../dist/state.js"></script>
+    
+    <!-- 加载所有测试脚本 (已重构为全局脚本) -->
+    <script src="./core.test.js"></script>
+    <script src="./observer.test.js"></script>
+    <script src="./dom.test.js"></script>
+    <script src="./component.test.js"></script>
+    <script src="./priority.test.js"></script>
+    <script src="./merging.test.js"></script>
+    <script src="./inheritance.test.js"></script>
+    <script src="./foundation.test.js"></script>
+    <script src="./timing.test.js"></script>
 </head>
 <body>
     <div id="results">Running tests...</div>
-    <script type="module">
-        import { testCore } from './core.test.js';
-        import { testObserver } from './observer.test.js';
-        import { testDom } from './dom.test.js';
-        import { testComponent } from './component.test.js';
-        import { testPriority } from './priority.test.js';
-        import { testMerging } from './merging.test.js';
-
+    <script>
         async function runAll() {
             const results = document.getElementById('results');
             try {
+                // 按顺序执行所有同步加载的测试函数
+                await testFoundation();
+                await testTiming();
+                await testInheritance();
                 await testCore();
                 await testObserver();
                 await testDom();
                 await testComponent();
                 await testPriority();
                 await testMerging();
-                results.innerHTML = '<h1 style="color: green">All Tests Passed 🎉</h1>';
+
+                results.innerHTML = '<h1 style="color: green">All Tests Passed 🎉 (Non-ESM)</h1>';
                 window.testStatus = 'passed';
             } catch (e) {
                 console.error(e);
@@ -37,7 +41,8 @@
                 window.testStatus = 'failed';
             }
         }
-        runAll();
+        // 由于所有脚本都是同步加载的，我们可以直接执行
+        window.addEventListener('DOMContentLoaded', runAll);
     </script>
 </body>
 </html>

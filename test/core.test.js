@@ -1,7 +1,6 @@
 // test/core.test.js
-import { _runCode, _returnCode } from '../src/core.js';
-
-export async function testCore() {
+window.testCore = async function() {
+    const { _runCode, _returnCode } = ApigoState;
     console.log('Testing core.js...');
     const vars = { a: 1, b: 2 };
     const extendVars = { c: 3 };
