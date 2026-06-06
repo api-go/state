@@ -5,7 +5,7 @@
 ### 重大变更 (Philosophical Restoration)
 - **核心逻辑回位**: 物理还原 v2.3 原始架构，彻底消灭所有 ESM 时期的“Magic”补丁逻辑（如 `_stManaged` 等标志位）。
 - **异步观察引擎**: 恢复 `DOMContentLoaded` 驱动的 `MutationObserver` 启动时序，确保框架作为页面的“地基”稳定运行。
-- **危险 API 重命名**: 将 `RefreshState` 重命名为 `__RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios`。此 API 仅供极端性能调优使用，严禁在常规业务中调用，旨在物理隔绝 AI 幻觉和不合理使用。
+- **危险 API 重命名**: 将 `RefreshState` 重命名为 `_unsafeRefreshState`。此 API 仅供极端性能调优使用，严禁在常规业务中调用，旨在物理隔绝 AI 幻觉和不合理使用。
 
 ### 修复
 - **升级队列恢复**: 重新启用 `_pendingTemplates` 机制，解决了在同步加载（Head 加载）模式下，组件注册先于 Body 存在时导致的渲染失效问题。

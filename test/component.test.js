@@ -1,6 +1,6 @@
 // test/component.test.js
 window.testComponent = async function() {
-    const { Component, ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios, $ } = ApigoState;
+    const { Component, ___unsafeRefreshState, $ } = ApigoState;
     console.log('Testing component.js...');
     
     // 1. Register component
@@ -10,7 +10,7 @@ window.testComponent = async function() {
     
     // 2. Render component
     document.body.innerHTML = '<TestComp id="comp-inst"></TestComp>';
-    ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.documentElement);
+    ___unsafeRefreshState(document.documentElement);
     
     const instance = $('#comp-inst');
     if (!instance) throw new Error('Component instance not found');

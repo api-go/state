@@ -1,6 +1,6 @@
 // src/dom.js
 import { _runCode, _returnCode, setDisableRunCodeError } from './core.js';
-import { getActiveBinding, setActiveBinding, getNoWriteBack, setNoWriteBack, NewState, onNotifyUpdate } from './observer.js';
+import { _getActiveBinding, _setActiveBinding, _getNoWriteBack, _setNoWriteBack, NewState, _onNotifyUpdate } from './observer.js';
 import { Component, _makeComponent, _mergeNode } from './component.js';
 import { $, $$ } from './dom-utils.js';
 
@@ -35,7 +35,7 @@ if (typeof document !== 'undefined') {
 
 export { $, $$ };
 
-onNotifyUpdate((binding) => _updateBinding(binding));
+_onNotifyUpdate((binding) => _updateBinding(binding));
 
 export function _clearRenderedNodes(node) {
 	if (node._renderedNodes) node._renderedNodes.forEach(nodes => nodes.forEach(child => {
@@ -48,14 +48,13 @@ export function _updateBinding(binding) {
 	const node = binding.node;
 	if (!node.isConnected && node.tagName !== 'TEMPLATE') return;
 
-	setActiveBinding(binding);
+	_setActiveBinding(binding);
 	let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
 	
-	// 增量 3: 支持 $$ 前缀的双重评估
 	if (binding.exp === 2 && typeof result === 'string') {
 		try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
 	}
-	setActiveBinding(null);
+	_setActiveBinding(null);
 
 	if (binding.prop) {
 		const prop = binding.prop;
@@ -67,10 +66,9 @@ export function _updateBinding(binding) {
 			if (typeof o !== 'object') break;
 		}
 		if (typeof o === 'object' && o !== null) {
-			const resultIsObject = typeof result === 'object' && result != null && !Array.isArray(result);
 			const lk = prop[prop.length - 1];
 			if (lk) {
-				if (resultIsObject && o[lk] == null) o[lk] = {};
+				if (typeof result === 'object' && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
 				const lo = o[lk];
 				if (typeof lo === 'object' && lo != null && lo.__watch) Object.assign(lo, result);
 				else { if (o[lk] !== result) o[lk] = result; }
@@ -98,7 +96,7 @@ export function _updateBinding(binding) {
 			if (result && typeof result === 'object') {
 				const asName = node.getAttribute('as') || 'item';
 				const indexName = node.getAttribute('index') || 'index';
-				const keyName = node.getAttribute('key'); // 增量 2: 支持 key
+				const keyName = node.getAttribute('key'); 
 				let keys, getVal;
 				if (result instanceof Map) {
 					keys = Array.from(result.keys()); getVal = k => result.get(k);
@@ -249,10 +247,10 @@ export const _parseNode = (node, scanObj) => {
 			if (realAttrName === 'bind') {
 				node.addEventListener(['textarea', 'text', 'password'].includes(node.type || 'text') || node.isContentEditable ? 'input' : 'change', (e) => {
 					let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : e.target.files || e.target.value || e.detail);
-					setNoWriteBack(node); setDisableRunCodeError(true);
+					_setNoWriteBack(node); setDisableRunCodeError(true);
 					if (node.type === 'checkbox' && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
 					else _runCode(`${tpl} = val`, { val: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
-					setDisableRunCodeError(false); setNoWriteBack(null);
+					setDisableRunCodeError(false); _setNoWriteBack(null);
 				});
 			} else if (realAttrName === 'text' && !tpl) { tpl = node.textContent; node.textContent = ''; }
 			if (tpl) { tpl = _translate(tpl); _initBinding({ node, attr: realAttrName, tpl, exp }); }
@@ -275,6 +273,22 @@ export const _scanTree = (node, scanObj = {}) => {
 			}
 		});
 		node._stTranslated = true;
+	}
+
+	// 还原原始逻辑：自动为非模板节点的 $if 和 $each 指令创建模版节点
+	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each'))) {
+		const template = document.createElement('TEMPLATE');
+		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each')) && ['as', 'index'].includes(attr.name)));
+		attrs.forEach(attr => {
+			template.setAttribute(attr.name, attr.value);
+			node.removeAttribute(attr.name);
+		});
+		node.parentNode.insertBefore(template, node);
+		template.content.appendChild(node);
+		template._ref = node._ref;
+		// 修正原始版本可能存在的漏扫：转换后立即对新生成的 TEMPLATE 发起递归扫描
+		_scanTree(template, scanObj);
+		return;
 	}
 
 	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each'))) {
@@ -317,7 +331,6 @@ export const _scanTree = (node, scanObj = {}) => {
 		while (curr && curr._ref === undefined) curr = curr.parentNode;
 		node._ref = curr ? { ...curr._ref } : {};
 	}
-	// 增量 4: 支持 _refExt 上下文注入
 	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
 
 	_parseNode(node, { ...scanObj });
@@ -337,4 +350,4 @@ export const _unbindTree = (node) => {
 	node.childNodes && node.childNodes.forEach(child => _unbindTree(child));
 };
 
-export const ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree;
+export const _unsafeRefreshState = _scanTree;

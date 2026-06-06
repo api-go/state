@@ -475,7 +475,7 @@
 		}
 		node.childNodes && node.childNodes.forEach(child => _unbindTree(child))
 	}
-	globalThis.__RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree
+	globalThis._unsafeRefreshState = _scanTree
 
 	const _components = new Map()
 	const _pendingTemplates = []

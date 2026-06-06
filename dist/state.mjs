@@ -1,10 +1,10 @@
 var _a;
-let _activeBinding = null;
-let _noWriteBack = null;
-const setActiveBinding = (val) => _activeBinding = val;
-const setNoWriteBack = (val) => _noWriteBack = val;
+let __activeBinding = null;
+let __noWriteBack = null;
+const _setActiveBinding = (val) => __activeBinding = val;
+const _setNoWriteBack = (val) => __noWriteBack = val;
 const _notifiers = /* @__PURE__ */ new Set();
-const onNotifyUpdate = (fn) => _notifiers.add(fn);
+const _onNotifyUpdate = (fn) => _notifiers.add(fn);
 function NewState(defaults = {}, getter = null, setter = null) {
   const _defaults = {};
   const _stateMappings = /* @__PURE__ */ new Map();
@@ -26,11 +26,11 @@ function NewState(defaults = {}, getter = null, setter = null) {
       if (key === "__watch") return _watchFunc;
       if (key === "__unwatch") return _unwatchFunc;
       if (key === "__isProxy") return true;
-      if (_activeBinding) {
+      if (__activeBinding) {
         if (!_stateMappings.has(key)) _stateMappings.set(key, /* @__PURE__ */ new Set());
-        _stateMappings.get(key).add(_activeBinding);
-        if (!_activeBinding.node._states) _activeBinding.node._states = /* @__PURE__ */ new Set();
-        _activeBinding.node._states.add(_stateMappings);
+        _stateMappings.get(key).add(__activeBinding);
+        if (!__activeBinding.node._states) __activeBinding.node._states = /* @__PURE__ */ new Set();
+        __activeBinding.node._states.add(_stateMappings);
       }
       return __getter(key);
     },
@@ -57,7 +57,7 @@ function NewState(defaults = {}, getter = null, setter = null) {
             bindings.delete(binding);
             continue;
           }
-          if (_noWriteBack !== binding.node) {
+          if (__noWriteBack !== binding.node) {
             _notifiers.forEach((fn) => fn(binding));
           }
         }
@@ -202,7 +202,7 @@ if (typeof document !== "undefined") {
     };
   }
 }
-onNotifyUpdate((binding) => _updateBinding(binding));
+_onNotifyUpdate((binding) => _updateBinding(binding));
 function _clearRenderedNodes(node) {
   if (node._renderedNodes) node._renderedNodes.forEach((nodes) => nodes.forEach((child) => {
     child.remove();
@@ -212,7 +212,7 @@ function _clearRenderedNodes(node) {
 function _updateBinding(binding) {
   const node = binding.node;
   if (!node.isConnected && node.tagName !== "TEMPLATE") return;
-  setActiveBinding(binding);
+  _setActiveBinding(binding);
   let result = binding.exp ? binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null : binding.tpl;
   if (binding.exp === 2 && typeof result === "string") {
     try {
@@ -220,7 +220,7 @@ function _updateBinding(binding) {
     } catch (e) {
     }
   }
-  setActiveBinding(null);
+  _setActiveBinding(null);
   if (binding.prop) {
     const prop = binding.prop;
     let o = node;
@@ -231,10 +231,9 @@ function _updateBinding(binding) {
       if (typeof o !== "object") break;
     }
     if (typeof o === "object" && o !== null) {
-      const resultIsObject = typeof result === "object" && result != null && !Array.isArray(result);
       const lk = prop[prop.length - 1];
       if (lk) {
-        if (resultIsObject && o[lk] == null) o[lk] = {};
+        if (typeof result === "object" && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
         const lo = o[lk];
         if (typeof lo === "object" && lo != null && lo.__watch) Object.assign(lo, result);
         else {
@@ -415,12 +414,12 @@ const _parseNode = (node, scanObj) => {
       if (realAttrName === "bind") {
         node.addEventListener(["textarea", "text", "password"].includes(node.type || "text") || node.isContentEditable ? "input" : "change", (e) => {
           let newVal = node.isContentEditable ? e.target.innerHTML : node.type === "checkbox" ? e.target.checked : e.target.files || e.target.value || e.detail;
-          setNoWriteBack(node);
+          _setNoWriteBack(node);
           setDisableRunCodeError(true);
           if (node.type === "checkbox" && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
           else _runCode(`${tpl} = val`, { val: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
           setDisableRunCodeError(false);
-          setNoWriteBack(null);
+          _setNoWriteBack(null);
         });
       } else if (realAttrName === "text" && !tpl) {
         tpl = node.textContent;
@@ -446,6 +445,19 @@ const _scanTree = (node, scanObj = {}) => {
       }
     });
     node._stTranslated = true;
+  }
+  if (node.tagName !== "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("$each") || node.hasAttribute("st-if") || node.hasAttribute("st-each"))) {
+    const template = document.createElement("TEMPLATE");
+    const attrs = Array.from(node.attributes).filter((attr) => ["$if", "$each", "st-if", "st-each"].includes(attr.name) || (node.hasAttribute("$each") || node.hasAttribute("st-each")) && ["as", "index"].includes(attr.name));
+    attrs.forEach((attr) => {
+      template.setAttribute(attr.name, attr.value);
+      node.removeAttribute(attr.name);
+    });
+    node.parentNode.insertBefore(template, node);
+    template.content.appendChild(node);
+    template._ref = node._ref;
+    _scanTree(template, scanObj);
+    return;
   }
   if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each"))) {
     const template = document.createElement("TEMPLATE");
@@ -504,7 +516,7 @@ const _unbindTree = (node) => {
   });
   node.childNodes && node.childNodes.forEach((child) => _unbindTree(child));
 };
-const ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree;
+const _unsafeRefreshState = _scanTree;
 const Util = {
   clone: window.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
   base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
@@ -599,18 +611,14 @@ const ApigoState = {
   Component,
   $,
   $$,
-  ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios,
+  RefreshState: _unsafeRefreshState,
   SetTranslator,
   _scanTree,
   _unbindTree,
   Util,
   Hash,
   LocalStorage,
-  State,
-  _runCode,
-  _returnCode,
-  onNotifyUpdate,
-  setActiveBinding
+  State
 };
 if (typeof window !== "undefined") {
   window.ApigoState = ApigoState;
@@ -642,10 +650,10 @@ export {
   Hash,
   LocalStorage,
   NewState,
+  _unsafeRefreshState as RefreshState,
   SetTranslator,
   State,
   Util,
-  ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios,
   _scanTree,
   _unbindTree
 };
