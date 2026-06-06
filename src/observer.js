@@ -1,14 +1,14 @@
 // src/observer.js
-let _activeBinding = null;
-let _noWriteBack = null;
+let __activeBinding = null;
+let __noWriteBack = null;
 
-export const getActiveBinding = () => _activeBinding;
-export const setActiveBinding = (val) => _activeBinding = val;
-export const getNoWriteBack = () => _noWriteBack;
-export const setNoWriteBack = (val) => _noWriteBack = val;
+export const _getActiveBinding = () => __activeBinding;
+export const _setActiveBinding = (val) => __activeBinding = val;
+export const _getNoWriteBack = () => __noWriteBack;
+export const _setNoWriteBack = (val) => __noWriteBack = val;
 
 const _notifiers = new Set();
-export const onNotifyUpdate = (fn) => _notifiers.add(fn);
+export const _onNotifyUpdate = (fn) => _notifiers.add(fn);
 
 export function NewState(defaults = {}, getter = null, setter = null) {
     const _defaults = {};
@@ -36,11 +36,11 @@ export function NewState(defaults = {}, getter = null, setter = null) {
             if (key === '__unwatch') return _unwatchFunc;
             if (key === '__isProxy') return true;
 
-            if (_activeBinding) {
+            if (__activeBinding) {
                 if (!_stateMappings.has(key)) _stateMappings.set(key, new Set());
-                _stateMappings.get(key).add(_activeBinding);
-                if (!_activeBinding.node._states) _activeBinding.node._states = new Set();
-                _activeBinding.node._states.add(_stateMappings);
+                _stateMappings.get(key).add(__activeBinding);
+                if (!__activeBinding.node._states) __activeBinding.node._states = new Set();
+                __activeBinding.node._states.add(_stateMappings);
             }
             return __getter(key);
         },
@@ -67,7 +67,7 @@ export function NewState(defaults = {}, getter = null, setter = null) {
                         bindings.delete(binding);
                         continue;
                     }
-                    if (_noWriteBack !== binding.node) {
+                    if (__noWriteBack !== binding.node) {
                         _notifiers.forEach(fn => fn(binding));
                     }
                 }

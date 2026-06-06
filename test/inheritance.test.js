@@ -1,6 +1,6 @@
 // test/inheritance.test.js
 window.testInheritance = async function() {
-    const { ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios, Component, NewState, $, Util } = ApigoState;
+    const { ___unsafeRefreshState, Component, NewState, $, Util } = ApigoState;
     console.log('Testing inheritance...');
 
     Component.register('MyComp', container => {
@@ -26,7 +26,7 @@ window.testInheritance = async function() {
     inst.id = 'comp-inst';
     document.body.appendChild(inst);
     
-    ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.documentElement);
+    ___unsafeRefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 100));
 
     const comp = $('#comp-inst');
