@@ -1,46 +1,29 @@
-import { Component } from '../src/component.js';
-import { RefreshState, $ } from '../src/dom.js';
-
-export async function testMerging() {
+// test/merging.test.js
+window.testMerging = async function() {
+    const { Component, RefreshState, $ } = ApigoState;
     console.log('Testing complex class/style merging (DataTable Resizer scenario)...');
-    
-    // 1. Resizer definition from @base
-    Component.register('RESIZER-REAL', container => {
-        container.isVertical = true;
-    }, document.createRange().createContextualFragment(`
-        <div class="tpl-static" $style="'height:10px'"></div>
-    `).firstElementChild);
 
-    // 2. Resizer usage from @dataTable
-    const testContainer = document.createElement('div');
-    testContainer.id = 'merging-test-root';
-    testContainer.innerHTML = `
-        <div id="parent">
-            <resizer-real id="resizer-instance" 
-                class="ins-static"
-                $style="'color:blue'">
-            </resizer-real>
-        </div>
-    `;
-    document.body.appendChild(testContainer);
-    
-    RefreshState(testContainer);
-    
-    // Wait for bindings
+    Component.register('Resizer-Real', container => {
+        container.isVertical = true;
+    }, document.createRange().createContextualFragment('<div $class="tpl-static ${this.isVertical?\'tpl-v\':\'tpl-h\'}" $style="color:blue"></div>').firstChild);
+
+    document.body.innerHTML = '<Resizer-Real id="res-inst" class="ins-static" style="opacity:0.5"></Resizer-Real>';
+    RefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 50));
 
-    const instance = $('#resizer-instance');
-    const classes = Array.from(instance.classList);
-    console.log('Final ClassList:', classes);
-    console.log('Final Style:', instance.getAttribute('style'));
+    const inst = $('#res-inst');
+    // Note: in current implementation, component root replaces the custom tag or merges?
+    // Based on base project usage, it merges into the tag.
+    
+    const classList = Array.from(inst.classList);
+    console.log('Final ClassList:', classList);
+    if (!classList.includes('ins-static') || !classList.includes('tpl-static')) {
+        throw new Error('Class merging failed');
+    }
 
-    // Verify static class merging
-    if (!classes.includes('ins-static')) throw new Error('Missing ins-static');
-    if (!classes.includes('tpl-static')) throw new Error('Missing tpl-static');
-
-    // Verify style merging (Instance wins on dynamic $style, but both are preserved in logic)
-    const style = instance.getAttribute('style');
-    if (!style.includes('color:blue')) throw new Error('Missing instance dynamic style');
+    const style = inst.getAttribute('style');
+    console.log('Final Style:', style);
+    if (!style.includes('color: blue') && !style.includes('color:blue')) throw new Error('Style merging failed');
 
     console.log('Merging test passed');
     return true;

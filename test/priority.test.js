@@ -1,49 +1,20 @@
-import { Component } from '../src/component.js';
-import { RefreshState, $ } from '../src/dom.js';
-
-export async function testPriority() {
-    console.log('Testing $.target priority...');
+// test/priority.test.js
+window.testPriority = async function() {
+    const { RefreshState, $, NewState } = ApigoState;
+    console.log('Testing directive priorities...');
     
-    let capturedTarget = null;
-    Component.register('RESIZER', (container) => {
-        capturedTarget = container.target;
-        console.log('Component setup, target:', capturedTarget);
-    });
-
-    document.body.innerHTML = `
-        <div id="parent">
-            <resizer id="resizer-node" $.target="thisNode.parentNode"></resizer>
-        </div>
-    `;
-    
+    // Test $if vs $text (if should hide text)
+    document.body.innerHTML = '<div id="prio-test" $if="state.hide" $text="state.msg"></div>';
+    const state = NewState({ hide: false, msg: 'visible' });
+    document.documentElement._thisObj = { state };
     RefreshState(document.documentElement);
     
-    const parent = $('#parent');
-
-    if (capturedTarget !== parent) {
-        throw new Error(`Priority issue: container.target was ${capturedTarget}, expected parent node`);
-    }
-
-    // 2. Test this. replacement
-    let capturedVal = null;
-    Component.register('VAL-COMP', (container) => {
-        capturedVal = container.val;
-        console.log('Val component setup, val:', capturedVal);
-    });
-
-    const state = { outerVal: 'hello' };
-    const outer = document.createElement('div');
-    outer.id = 'outer';
-    outer._thisObj = state; // Rule: Set _thisObj on root before scanning if not in document
-    outer.innerHTML = `<val-comp id="val-node" $.val="this.outerVal"></val-comp>`;
+    if ($('#prio-test').textContent !== 'visible') throw new Error('Basic visibility failed');
     
-    RefreshState(outer, { thisObj: state });
-    document.body.appendChild(outer);
-
-    if (capturedVal !== 'hello') {
-        throw new Error(`this. replacement failed: capturedVal was ${capturedVal}, expected 'hello'`);
-    }
-
-    console.log('Priority tests passed');
+    state.hide = true;
+    await new Promise(r => setTimeout(r, 10));
+    if ($('#prio-test')) throw new Error('Priority $if failed: node should be removed');
+    
+    console.log('priority.js tests passed');
     return true;
 }

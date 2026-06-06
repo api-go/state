@@ -22,7 +22,8 @@ export function NewState(defaults = {}, getter = null, setter = null) {
     };
 
     const _unwatchFunc = (k, cb) => {
-        if (_watchers.has(k)) _watchers.get(k).delete(cb);
+        if (_watchers.has(k)) _watchers.set(k, new Set());
+        _watchers.get(k).delete(cb);
     };
 
     const __getter = getter || (k => _defaults[k]);
