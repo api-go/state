@@ -71,7 +71,7 @@ export function _makeComponent(name, node, scanObj, exists = {}) {
     if (template) {
         const tplnode = template.content.cloneNode(true);
         if (tplnode.childNodes.length) {
-            const rootNode = Array.from(tplnode.childNodes).find(n => n.nodeType === Node.ELEMENT_NODE);
+            const rootNode = tplnode.children[0];
             if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
             $$(node, '[slot-id]').forEach(placeholder => {
                 const slotName = placeholder.getAttribute('slot-id');

@@ -75,6 +75,6 @@ AI 必须根据不同的元素类型执行以下逻辑：
 
 ## 6. 运行约束 (Constraints)
 
-1.  **禁止滥用同步刷新**：`RefreshState()` 仅用于要求“同步等待 DOM 更新”的场景。知晓其会导致一次额外的渲染任务。
+1.  **禁止滥用同步刷新**：**严禁** 在常规开发中调用 `__RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios()`。该函数仅为极高性能干预（如万级数据表格）预留。
 2.  **数据流向**：所有状态变更必须通过对 `NewState` 代理对象的赋值完成。
 3.  **Key 的必要性**：在大规模数据（>100条）或复杂交互列表中，必须提供唯一 `key` 以激活节点复用逻辑。

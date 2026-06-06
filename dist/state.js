@@ -138,7 +138,7 @@
     if (template) {
       const tplnode = template.content.cloneNode(true);
       if (tplnode.childNodes.length) {
-        const rootNode = Array.from(tplnode.childNodes).find((n) => n.nodeType === Node.ELEMENT_NODE);
+        const rootNode = tplnode.children[0];
         if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
         $$(node, "[slot-id]").forEach((placeholder) => {
           const slotName = placeholder.getAttribute("slot-id");
@@ -508,7 +508,7 @@
     });
     node.childNodes && node.childNodes.forEach((child) => _unbindTree(child));
   };
-  const RefreshState = _scanTree;
+  const ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree;
   const Util = {
     clone: window.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
     base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
@@ -603,7 +603,7 @@
     Component,
     $,
     $$,
-    RefreshState,
+    ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios,
     SetTranslator,
     _scanTree,
     _unbindTree,
@@ -621,6 +621,7 @@
   }
   if (typeof document !== "undefined") {
     const init = () => {
+      Component._initPending();
       const htmlNode = document.documentElement;
       if (!htmlNode.hasAttribute("$data-bs-theme") && !htmlNode.hasAttribute("data-bs-theme")) {
         htmlNode.setAttribute("$data-bs-theme", "LocalStorage.darkMode?'dark':'light'");
@@ -644,10 +645,10 @@
   exports2.Hash = Hash;
   exports2.LocalStorage = LocalStorage;
   exports2.NewState = NewState;
-  exports2.RefreshState = RefreshState;
   exports2.SetTranslator = SetTranslator;
   exports2.State = State;
   exports2.Util = Util;
+  exports2.____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios;
   exports2._scanTree = _scanTree;
   exports2._unbindTree = _unbindTree;
   Object.defineProperty(exports2, Symbol.toStringTag, { value: "Module" });
