@@ -1,6 +1,6 @@
 // test/timing.test.js
 window.testTiming = async function() {
-    const { RefreshState, Component, NewState, $, Util } = ApigoState;
+    const { ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios, Component, NewState, $, Util } = ApigoState;
     console.log('Testing initialization timing...');
 
     Component.register('TimingComp', container => {
@@ -14,7 +14,7 @@ window.testTiming = async function() {
     `));
 
     document.body.innerHTML += `<TimingComp id="timing-inst"></TimingComp>`;
-    RefreshState(document.documentElement);
+    ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.documentElement);
     
     await new Promise(r => setTimeout(r, 100));
 

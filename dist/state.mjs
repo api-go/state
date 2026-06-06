@@ -134,7 +134,7 @@ function _makeComponent(name, node, scanObj, exists = {}) {
   if (template) {
     const tplnode = template.content.cloneNode(true);
     if (tplnode.childNodes.length) {
-      const rootNode = Array.from(tplnode.childNodes).find((n) => n.nodeType === Node.ELEMENT_NODE);
+      const rootNode = tplnode.children[0];
       if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
       $$(node, "[slot-id]").forEach((placeholder) => {
         const slotName = placeholder.getAttribute("slot-id");
@@ -504,7 +504,7 @@ const _unbindTree = (node) => {
   });
   node.childNodes && node.childNodes.forEach((child) => _unbindTree(child));
 };
-const RefreshState = _scanTree;
+const ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree;
 const Util = {
   clone: window.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
   base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
@@ -599,7 +599,7 @@ const ApigoState = {
   Component,
   $,
   $$,
-  RefreshState,
+  ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios,
   SetTranslator,
   _scanTree,
   _unbindTree,
@@ -617,6 +617,7 @@ if (typeof window !== "undefined") {
 }
 if (typeof document !== "undefined") {
   const init = () => {
+    Component._initPending();
     const htmlNode = document.documentElement;
     if (!htmlNode.hasAttribute("$data-bs-theme") && !htmlNode.hasAttribute("data-bs-theme")) {
       htmlNode.setAttribute("$data-bs-theme", "LocalStorage.darkMode?'dark':'light'");
@@ -641,10 +642,10 @@ export {
   Hash,
   LocalStorage,
   NewState,
-  RefreshState,
   SetTranslator,
   State,
   Util,
+  ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios,
   _scanTree,
   _unbindTree
 };

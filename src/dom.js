@@ -337,4 +337,4 @@ export const _unbindTree = (node) => {
 	node.childNodes && node.childNodes.forEach(child => _unbindTree(child));
 };
 
-export const RefreshState = _scanTree;
+export const ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios = _scanTree;

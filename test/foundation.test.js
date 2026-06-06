@@ -1,6 +1,6 @@
 // test/foundation.test.js
 window.testFoundation = async function() {
-    const { RefreshState, Component, NewState, $, Util } = ApigoState;
+    const { ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios, Component, NewState, $, Util } = ApigoState;
     console.log('Testing framework foundation...');
 
     Component.register('NavTest', container => {
@@ -26,7 +26,7 @@ window.testFoundation = async function() {
     const inst = document.createElement('NAVTEST');
     inst.id = 'nav-inst';
     document.body.appendChild(inst);
-    RefreshState(document.documentElement);
+    ____RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.documentElement);
     await new Promise(r => setTimeout(r, 100));
 
     const nav = $('#nav-inst');

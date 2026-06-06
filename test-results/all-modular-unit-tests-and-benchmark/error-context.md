@@ -56,8 +56,8 @@ Received: "failed"
   32 |         const items = [];
   33 |         for(let i=0; i<1000; i++) items.push({val: 'item ' + i});
   34 |         window.state.benchItems = items;
-  35 |         const { RefreshState } = await import('@apigo.cc/state');
-  36 |         RefreshState(document.documentElement);
+  35 |         const { __RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios } = await import('@apigo.cc/state');
+  36 |         __RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.documentElement);
   37 |         return performance.now() - start;
   38 |     });
   39 |     console.log(`BENCHMARK: 1000 items initial render: ${renderTime.toFixed(2)}ms`);
@@ -75,10 +75,10 @@ Received: "failed"
   51 | 
   52 |     // Extreme Data Test
   53 |     await page.evaluate(async () => {
-  54 |         const { RefreshState } = await import('@apigo.cc/state');
+  54 |         const { __RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios } = await import('@apigo.cc/state');
   55 |         document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
   56 |         window.state.extreme = null;
-  57 |         RefreshState(document.getElementById('extreme'));
+  57 |         __RefreshState_Internal_Force_Full_Scan_Only_In_Extreme_Performance_Scenarios(document.getElementById('extreme'));
   58 |         window.state.extreme = undefined;
   59 |         window.state.extreme = { a: 1 };
   60 |         window.state.extreme = [1, 2];
