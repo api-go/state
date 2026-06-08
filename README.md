@@ -20,11 +20,15 @@
 
 指令语法：`$attribute="code"`。作用域默认为全局，组件内优先访问 `node.state`。
 
-### 结构化映射
-| 指令 | 触发逻辑 | DOM 行为 |
-| :--- | :--- | :--- |
-| **`$if`** | `Boolean(result)` | `true`: 挂载节点; `false`: 移除节点。建议配合 `<template>`。 |
-| **`$each`** | `Iterable` | 基于 `key` 属性执行节点复用。无 `key` 时按索引重建。支持 `as`, `index` 定义局部变量。 |
+### 结构化映射 (AI 强制规范)
+| 指令 | 触发逻辑 | DOM 行为 | 运行约束 |
+| :--- | :--- | :--- | :--- |
+| **`$if`** | `Boolean(result)` | `true`: 挂载节点; `false`: 移除节点。 | **必须** 作用于 `<template>`。 |
+| **`$each`** | `Iterable` | 基于 `key` 属性执行节点复用。无 `key` 时按索引重建。支持 `as`, `index` 定义局部变量。 | **必须** 作用于 `<template>`。 |
+
+**结构化指令铁律**：
+1.  **标签约束**：严禁在非 `<template>` 标签上使用 `$if` 或 `$each`。
+2.  **互斥约束**：严禁在同一个 `<template>` 上同时使用 `$if` 和 `$each`。若需组合，必须嵌套（如：`$if` 模版包裹 `$each` 模版）。
 
 ### 数据双向绑定 (`$bind`)
 AI 必须根据不同的元素类型执行以下逻辑：
@@ -37,11 +41,11 @@ AI 必须根据不同的元素类型执行以下逻辑：
 - **`[contenteditable]`**: 监听 `input`，同步 `innerHTML`。
 - **`input[type=file]`**: 同步 `files` 对象。
 
-### 属性操作映射
+### 属性与 Property 绑定
 - **`$text`**: 映射至 `textContent`。
 - **`$html`**: 映射至 `innerHTML`。
 - **`$class`**: **严格要求使用模板字符串**。范式：`class="static-name ${condition ? 'dynamic-name' : ''}"`。严禁覆盖原有类名。
-- **`.path.to.prop`**: 直接映射至 DOM 对象原生属性。例如：`.style.color="'red'"` 映射为 `el.style.color = 'red'`。
+- **`$.path.to.prop`**: 直接映射至 DOM 对象或组件的 Property。初始化 Property 绑定必须带 `.` 前缀。
 - **`$src`**: 增强逻辑。若值以 `.svg` 结尾，异步 Fetch 并替换为内联 `<svg>` 节点。
 - **`$$attr`**: 二级求值。`eval(eval(expr))` 逻辑，用于动态生成指令代码。
 
@@ -49,11 +53,11 @@ AI 必须根据不同的元素类型执行以下逻辑：
 
 ## 3. 生命周期与事件逻辑
 
-- **`$on[event]`**: 映射为 `addEventListener`。注入 `event`, `thisNode`, `this`。
+- **`$on[event]`**: 映射为 `addEventListener`。注入 `event`, `thisNode`, `State`, `LocalStorage`, `Hash`。
 - **生命周期**：
-    - **`$onload`**: `DOMNodeInserted` 且指令解析完成后触发。
-    - **`$onunload`**: `DOMNodeRemoved` 前触发，必须用于清理定时器或外部监听。
-    - **`$onupdate`**: 属性 setter 触发且渲染微任务完成后执行。
+    - **`$onload`**: 节点进入 DOM 且指令解析完成后触发。
+    - **`$onunload`**: 节点从 DOM 移除前触发。
+    - **`$onupdate`**: 绑定的数据变更且渲染任务完成后执行。
 
 ---
 

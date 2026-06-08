@@ -111,7 +111,9 @@
       });
     }
     to.classList.add(...from.classList);
-    Array.from(from.childNodes).forEach((child) => to.appendChild(child));
+    const target = to.tagName === "TEMPLATE" ? to.content : to;
+    const sourceNodes = from.tagName === "TEMPLATE" ? from.content.childNodes : from.childNodes;
+    Array.from(sourceNodes).forEach((child) => target.appendChild(child));
     if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
   }
   function _makeComponent(name, node, scanObj, exists = {}) {
@@ -440,6 +442,13 @@
     if (node._thisObj) scanObj.thisObj = node._thisObj;
   };
   const _scanTree = (node, scanObj = {}) => {
+    if (node.nodeType === 3) {
+      if (node._stTranslated) return;
+      const translated = _translate(node.textContent);
+      if (translated !== node.textContent) node.textContent = translated;
+      node._stTranslated = true;
+      return;
+    }
     if (node.nodeType !== 1) return;
     if (!node._stTranslated) {
       Array.from(node.attributes).forEach((attr) => {
@@ -460,7 +469,6 @@
       node.parentNode.insertBefore(template, node);
       template.content.appendChild(node);
       template._ref = node._ref;
-      _scanTree(template, scanObj);
       return;
     }
     if (node.tagName === "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("st-if")) && (node.hasAttribute("$each") || node.hasAttribute("st-each"))) {
@@ -624,6 +632,8 @@
     LocalStorage,
     State
   };
+  globalThis.$ = $;
+  globalThis.$$ = $$;
   if (typeof window !== "undefined") {
     window.ApigoState = ApigoState;
   }

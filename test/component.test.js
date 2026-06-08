@@ -9,7 +9,9 @@ window.testComponent = async function() {
     }, document.createRange().createContextualFragment('<div id="comp-inner" $text="this.state.msg"></div>').firstChild);
     
     // 2. Render component
-    document.body.innerHTML = '<TestComp id="comp-inst"></TestComp>';
+    const comp = document.createElement('TestComp');
+    comp.id = 'comp-inst';
+    document.body.appendChild(comp);
     ___unsafeRefreshState(document.documentElement);
     
     const instance = $('#comp-inst');
