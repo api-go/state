@@ -50,7 +50,7 @@ export function _updateBinding(binding) {
 
 	_setActiveBinding(binding);
 	let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
-	
+
 	if (binding.exp === 2 && typeof result === 'string') {
 		try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
 	}
@@ -96,7 +96,7 @@ export function _updateBinding(binding) {
 			if (result && typeof result === 'object') {
 				const asName = node.getAttribute('as') || 'item';
 				const indexName = node.getAttribute('index') || 'index';
-				const keyName = node.getAttribute('key'); 
+				const keyName = node.getAttribute('key');
 				let keys, getVal;
 				if (result instanceof Map) {
 					keys = Array.from(result.keys()); getVal = k => result.get(k);
@@ -263,6 +263,12 @@ export const _parseNode = (node, scanObj) => {
 };
 
 export const _scanTree = (node, scanObj = {}) => {
+	if (node.nodeType === 3) {
+		if (node._stTranslated) return;
+		const translated = _translate(node.textContent);
+		if (translated !== node.textContent) node.textContent = translated;
+		node._stTranslated = true; return;
+	}
 	if (node.nodeType !== 1) return;
 
 	if (!node._stTranslated) {
@@ -275,7 +281,7 @@ export const _scanTree = (node, scanObj = {}) => {
 		node._stTranslated = true;
 	}
 
-	// 还原原始逻辑：自动为非模板节点的 $if 和 $each 指令创建模版节点
+	// 自动为非模板节点的 $if 和 $each 指令创建模版节点
 	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each'))) {
 		const template = document.createElement('TEMPLATE');
 		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each')) && ['as', 'index'].includes(attr.name)));
@@ -286,8 +292,6 @@ export const _scanTree = (node, scanObj = {}) => {
 		node.parentNode.insertBefore(template, node);
 		template.content.appendChild(node);
 		template._ref = node._ref;
-		// 修正原始版本可能存在的漏扫：转换后立即对新生成的 TEMPLATE 发起递归扫描
-		_scanTree(template, scanObj);
 		return;
 	}
 

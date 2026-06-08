@@ -18,6 +18,12 @@ Expected: "passed"
 Received: "failed"
 ```
 
+# Page snapshot
+
+```yaml
+- 'heading "Tests Failed: ___unsafeRefreshState is not a function" [level=1] [ref=e3]'
+```
+
 # Test source
 
 ```ts
@@ -56,8 +62,8 @@ Received: "failed"
   32 |         const items = [];
   33 |         for(let i=0; i<1000; i++) items.push({val: 'item ' + i});
   34 |         window.state.benchItems = items;
-  35 |         const { _unsafeRefreshState } = await import('@apigo.cc/state');
-  36 |         _unsafeRefreshState(document.documentElement);
+  35 |         const { ___unsafeRefreshState } = await import('@apigo.cc/state');
+  36 |         ___unsafeRefreshState(document.documentElement);
   37 |         return performance.now() - start;
   38 |     });
   39 |     console.log(`BENCHMARK: 1000 items initial render: ${renderTime.toFixed(2)}ms`);
@@ -75,10 +81,10 @@ Received: "failed"
   51 | 
   52 |     // Extreme Data Test
   53 |     await page.evaluate(async () => {
-  54 |         const { _unsafeRefreshState } = await import('@apigo.cc/state');
+  54 |         const { ___unsafeRefreshState } = await import('@apigo.cc/state');
   55 |         document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
   56 |         window.state.extreme = null;
-  57 |         _unsafeRefreshState(document.getElementById('extreme'));
+  57 |         ___unsafeRefreshState(document.getElementById('extreme'));
   58 |         window.state.extreme = undefined;
   59 |         window.state.extreme = { a: 1 };
   60 |         window.state.extreme = [1, 2];

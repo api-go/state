@@ -16,6 +16,9 @@ const ApigoState = {
     NewState, Component, $, $$, RefreshState: _unsafeRefreshState, SetTranslator, _scanTree, _unbindTree, Util, Hash, LocalStorage, State
 };
 
+globalThis.$ = $;
+globalThis.$$ = $$;
+
 if (typeof window !== 'undefined') {
     window.ApigoState = ApigoState;
 }
