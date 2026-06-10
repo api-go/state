@@ -1,6 +1,5 @@
 // test/foundation.test.js
 window.testFoundation = async function() {
-    const { ___unsafeRefreshState, Component, NewState, $, Util } = ApigoState;
     console.log('Testing framework foundation...');
 
     Component.register('NavTest', container => {
@@ -26,7 +25,7 @@ window.testFoundation = async function() {
     const inst = document.createElement('NAVTEST');
     inst.id = 'nav-inst';
     document.body.appendChild(inst);
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 100));
 
     const nav = $('#nav-inst');

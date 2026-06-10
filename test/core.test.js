@@ -1,6 +1,5 @@
 // test/core.test.js
 window.testCore = async function() {
-    const { _runCode, _returnCode } = ApigoState;
     console.log('Testing core.js...');
     const vars = { a: 1, b: 2 };
     const extendVars = { c: 3 };

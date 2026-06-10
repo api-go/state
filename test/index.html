@@ -2,23 +2,27 @@
 <html>
 <head>
     <title>State.js Synchronous Tests</title>
-    <!-- 同步加载打包好的 UMD 库 -->
-    <script src="../dist/state.js"></script>
+    <!-- 同步加载重组后的源码文件 (非 ESM 模式) -->
+    <script src="../src/utils.js"></script>
+    <script src="../src/reactive.js"></script>
+    <script src="../src/engine.js"></script>
+    <script src="../src/index.js" type="module"></script> <!-- Vite dev server entry -->
     
-    <!-- 加载所有测试脚本 (已重构为全局脚本) -->
+    <!-- 加载所有测试脚本 -->
     <script src="./core.test.js"></script>
     <script src="./observer.test.js"></script>
     <script src="./dom.test.js"></script>
     <script src="./component.test.js"></script>
     <script src="./priority.test.js"></script>
-    <script src="./merging.test.js"></script>
     <script src="./inheritance.test.js"></script>
-    <script src="./foundation.test.js"></script>
+    <script src="./merging.test.js"></script>
     <script src="./timing.test.js"></script>
+    <script src="./foundation.test.js"></script>
 </head>
 <body>
     <div id="results">Running tests...</div>
     <script>
+        window.__DEBUG = false;
         async function runAll() {
             const results = document.getElementById('results');
             try {
@@ -32,8 +36,8 @@
                 await testComponent();
                 await testPriority();
                 await testMerging();
-
-                results.innerHTML = '<h1 style="color: green">All Tests Passed 🎉 (Non-ESM)</h1>';
+                
+                results.innerHTML = '<h1 style="color: green">All Tests Passed!</h1>';
                 window.testStatus = 'passed';
             } catch (e) {
                 console.error(e);
@@ -41,8 +45,8 @@
                 window.testStatus = 'failed';
             }
         }
-        // 由于所有脚本都是同步加载的，我们可以直接执行
-        window.addEventListener('DOMContentLoaded', runAll);
+        // 等待所有内容（包括异步插入的模板）准备就绪
+        window.addEventListener('load', runAll);
     </script>
 </body>
 </html>
