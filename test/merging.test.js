@@ -1,14 +1,13 @@
 // test/merging.test.js
 window.testMerging = async function() {
-    const { Component, ___unsafeRefreshState, $ } = ApigoState;
     console.log('Testing complex class/style merging (DataTable Resizer scenario)...');
 
     Component.register('Resizer-Real', container => {
         container.isVertical = true;
-    }, document.createRange().createContextualFragment('<div $class="tpl-static ${this.isVertical?\'tpl-v\':\'tpl-h\'}" $style="color:blue"></div>').firstChild);
+    }, document.createRange().createContextualFragment('<div $class="tpl-static ${this.isVertical?\'tpl-v\':\'tpl-h\'}" $style="\'color:blue\'"></div>').firstChild);
 
     document.body.innerHTML = '<Resizer-Real id="res-inst" class="ins-static" style="opacity:0.5"></Resizer-Real>';
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 50));
 
     const inst = $('#res-inst');

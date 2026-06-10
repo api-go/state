@@ -1,6 +1,5 @@
 // test/dom.test.js
 window.testDom = async function() {
-    const { ___unsafeRefreshState, $, $$, NewState } = ApigoState;
     console.log('Testing dom.js...');
     
     const wait = () => new Promise(r => setTimeout(r, 10));
@@ -10,7 +9,7 @@ window.testDom = async function() {
     const state = NewState({ msg: 'hello' });
     window.state = state; // TRY: 确保在非 ESM 环境下 state 全局可见
     document.documentElement._thisObj = { state };
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     if ($('#test-text').textContent !== 'hello') throw new Error('$text binding failed');
     
     state.msg = 'world';
@@ -20,7 +19,7 @@ window.testDom = async function() {
     // 2. $if directive
     document.body.innerHTML = '<template $if="state.show"><div id="test-if">visible</div></template>';
     state.show = false;
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     if ($('#test-if')) throw new Error('$if fail: should be hidden');
     
     state.show = true;
@@ -30,7 +29,8 @@ window.testDom = async function() {
     // 3. $each directive
     document.body.innerHTML = '<template $each="state.items"><div class="test-item" $text="item"></div></template>';
     state.items = ['A', 'B'];
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
+    await wait(); // Wait for MutationObserver or next pass
     if ($$('.test-item').length !== 2) throw new Error('$each fail: count mismatch');
     if ($$('.test-item')[0].textContent !== 'A') throw new Error('$each fail: content mismatch');
 
@@ -41,14 +41,14 @@ window.testDom = async function() {
     // 4. Event binding $onclick
     document.body.innerHTML = '<button id="test-click" $onclick="state.count++"></button>';
     state.count = 0;
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     $('#test-click').click();
     if (state.count !== 1) throw new Error('$onclick failed');
 
     // 5. $bind (input)
     document.body.innerHTML = '<input id="test-bind" $bind="state.val">';
     state.val = 'init';
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     await wait(); // TRY: 等待 $bind 的 setTimeout 完成
     const input = $('#test-bind');
     if (input.value !== 'init') throw new Error('$bind initial failed');
@@ -74,13 +74,13 @@ window.testDom = async function() {
     const root = $('#double-eval-root');
     root._thisObj = { state: doubleState };
     
-    ___unsafeRefreshState(root);
+    globalThis._unsafeRefreshState(root);
     await wait();
     if ($('#inner-node')) throw new Error('$$if failed: should be hidden initially');
     
     console.log('Enabling inner node...');
     doubleState.innerShow = true;
-    ___unsafeRefreshState(root);
+    globalThis._unsafeRefreshState(root);
     await wait();
     const inner = $('#inner-node');
     if (!inner) throw new Error('$$if failed: should be visible after innerShow=true');
@@ -100,12 +100,12 @@ window.testDom = async function() {
     nestedRoot._thisObj = { state: doubleState };
     doubleState.outer = true;
     doubleState.innerShow = false;
-    ___unsafeRefreshState(nestedRoot);
+    globalThis._unsafeRefreshState(nestedRoot);
     await wait();
     if ($('#nested-inner')) throw new Error('nested $$if failed: should be hidden initially');
 
     doubleState.innerShow = true;
-    ___unsafeRefreshState(nestedRoot);
+    globalThis._unsafeRefreshState(nestedRoot);
     await wait();
     if (!$('#nested-inner')) throw new Error('nested $$if failed: should be visible after update');
 

@@ -1,6 +1,5 @@
 // test/timing.test.js
 window.testTiming = async function() {
-    const { ___unsafeRefreshState, Component, NewState, $, Util } = ApigoState;
     console.log('Testing initialization timing...');
 
     Component.register('TimingComp', container => {
@@ -14,7 +13,7 @@ window.testTiming = async function() {
     `));
 
     document.body.innerHTML += `<TimingComp id="timing-inst"></TimingComp>`;
-    ___unsafeRefreshState(document.documentElement);
+    globalThis._unsafeRefreshState(document.documentElement);
     
     await new Promise(r => setTimeout(r, 100));
 

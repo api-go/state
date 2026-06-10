@@ -1,19 +1,18 @@
 // test/observer.test.js
 window.testObserver = async function() {
-    const { NewState, onNotifyUpdate, setActiveBinding } = ApigoState;
     console.log('Testing observer.js...');
     
     const state = NewState({ a: 1, b: 2 });
     let notifyCount = 0;
     
-    onNotifyUpdate(() => {
+    _onNotifyUpdate(() => {
         notifyCount++;
     });
     
     // Test binding registration
-    setActiveBinding({ node: { isConnected: true }, attr: 'text', tpl: 'a' });
+    _setActiveBinding({ node: { isConnected: true }, attr: 'text', tpl: 'a' });
     state.a; // Trigger getter
-    setActiveBinding(null);
+    _setActiveBinding(null);
     
     // Test notification
     state.a = 2;
