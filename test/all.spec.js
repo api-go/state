@@ -20,7 +20,7 @@ test('modular unit tests and benchmark', async ({ page }) => {
     const baseUpdate = getBench('浅更新 \\(Shallow Update\\)');
 
     // Benchmark: Large list rendering
-    const renderTime = await page.evaluate(() => {
+    const renderTime = await page.evaluate(async () => {
         const start = performance.now();
         document.body.innerHTML = `
             <ul id="bench-list">
@@ -32,27 +32,29 @@ test('modular unit tests and benchmark', async ({ page }) => {
         const items = [];
         for(let i=0; i<1000; i++) items.push({val: 'item ' + i});
         window.state.benchItems = items;
-        window._unsafeRefreshState(document.documentElement);
+        const { ___unsafeRefreshState } = await import('@apigo.cc/state');
+        ___unsafeRefreshState(document.documentElement);
         return performance.now() - start;
     });
     console.log(`BENCHMARK: 1000 items initial render: ${renderTime.toFixed(2)}ms`);
-    if (baseInitial) expect(renderTime).toBeLessThan(baseInitial * 1.5); // Relaxed for local dev variations
+    if (baseInitial) expect(renderTime).toBeLessThan(baseInitial * 1.2);
 
     // Benchmark: Large list update
-    const updateTime = await page.evaluate(() => {
+    const updateTime = await page.evaluate(async () => {
         const start = performance.now();
         window.state.benchItems[0].val = 'updated';
         window.state.benchItems = [...window.state.benchItems]; 
         return performance.now() - start;
     });
     console.log(`BENCHMARK: 1000 items update (shallow): ${updateTime.toFixed(2)}ms`);
-    if (baseUpdate) expect(updateTime).toBeLessThan(baseUpdate * 1.5);
+    if (baseUpdate) expect(updateTime).toBeLessThan(baseUpdate * 1.2);
 
     // Extreme Data Test
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
+        const { ___unsafeRefreshState } = await import('@apigo.cc/state');
         document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
         window.state.extreme = null;
-        window._unsafeRefreshState(document.getElementById('extreme'));
+        ___unsafeRefreshState(document.getElementById('extreme'));
         window.state.extreme = undefined;
         window.state.extreme = { a: 1 };
         window.state.extreme = [1, 2];
