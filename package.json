@@ -1,8 +1,9 @@
 {
   "name": "@apigo.cc/state",
-  "version": "1.0.19",
+  "version": "1.0.17",
   "type": "module",
   "main": "dist/state.js",
+  "module": "dist/state.js",
   "files": [
     "dist"
   ],

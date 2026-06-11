@@ -1,18 +1,5 @@
 # CHANGELOG
 
-## v1.0.19 (2026-06-09)
-
-### 重大变更 (Pure Synchronous Architecture)
-- **架构重组**: 将分散的 8 个文件整合为 3 个高内聚模块 (`utils.js`, `reactive.js`, `engine.js`)，大幅减少文件碎片。
-- **全局命名空间平铺**: 彻底移除 `ApigoState` 包装对象，核心 API (`NewState`, `Component`, `$`, `$$` 等) 直接平铺挂载至 `globalThis`，回归最朴素的原生开发范式。
-- **源码脱离 ESM**: 源码层级全面剥离 `import` 和 `export` 语句，配合 IIFE 闭包技术实现内部逻辑封装，确保在 `<head>` 中同步加载的绝对可靠性。
-- **`_refExt` 官方支持**: 将此前作为 Hack 存在的 `_refExt` 机制正式合入引擎核心，支持从外部通过 DOM 节点属性注入额外的响应式上下文。
-
-### 优化与修复
-- **测试保真度**: 100% 重构单元测试加载机制，模拟用户真实同步引入环境，确保“所测即所用”。
-- **调试增强**: 引入 `globalThis.__DEBUG` 开关，支持在不污染生产环境的前提下开启详尽的指令解析日志。
-- **模板安全性**: 将自动生成的组件模板改为注入至 `document.head`，防止应用级 `innerHTML` 重置导致模板丢失。
-
 ## v1.0.17 (2026-06-05)
 
 ### 重大变更 (Philosophical Restoration)

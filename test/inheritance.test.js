@@ -1,5 +1,6 @@
 // test/inheritance.test.js
 window.testInheritance = async function() {
+    const { ___unsafeRefreshState, Component, NewState, $, Util } = ApigoState;
     console.log('Testing inheritance...');
 
     Component.register('MyComp', container => {
@@ -25,7 +26,7 @@ window.testInheritance = async function() {
     inst.id = 'comp-inst';
     document.body.appendChild(inst);
     
-    globalThis._unsafeRefreshState(document.documentElement);
+    ___unsafeRefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 100));
 
     const comp = $('#comp-inst');
