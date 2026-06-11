@@ -1,28 +1,19 @@
-// src/index.js
-export { NewState } from './observer.js';
-export { Component } from './component.js';
-export { $, $$, _unsafeRefreshState as RefreshState, SetTranslator, _scanTree, _unbindTree } from './dom.js';
-export { Util } from './utils.js';
-export { Hash, LocalStorage, State } from './globals.js';
+import './utils.js';
+import './observer.js';
+import { _unbindTree, _scanTree } from './engine.js';
+import './core.js';
 
-import { Component } from './component.js';
-import { _scanTree, _unbindTree, $, $$, _unsafeRefreshState, SetTranslator } from './dom.js';
-import { LocalStorage, Hash, State } from './globals.js';
-import { NewState, _onNotifyUpdate, _setActiveBinding } from './observer.js';
-import { Util } from './utils.js';
-import { _runCode, _returnCode } from './core.js';
-
-const ApigoState = {
-    NewState, Component, $, $$, RefreshState: _unsafeRefreshState, SetTranslator, _scanTree, _unbindTree, Util, Hash, LocalStorage, State
-};
-
-if (typeof window !== 'undefined') {
-    window.ApigoState = ApigoState;
-}
+/**
+ * Entry Point
+ * Orchestrates initialization and MutationObserver.
+ */
 
 if (typeof document !== 'undefined') {
     const init = () => {
-        Component._initPending();
+        if (globalThis.Component && globalThis.Component._initPending) {
+            globalThis.Component._initPending();
+        }
+        
         const htmlNode = document.documentElement;
         if (!htmlNode.hasAttribute('$data-bs-theme') && !htmlNode.hasAttribute('data-bs-theme')) {
             htmlNode.setAttribute('$data-bs-theme', "LocalStorage.darkMode?'dark':'light'");
@@ -43,3 +34,9 @@ if (typeof document !== 'undefined') {
     if (document.readyState !== 'loading') init();
     else document.addEventListener('DOMContentLoaded', init, true);
 }
+
+export { NewState } from './observer.js';
+export { Component, SetTranslator } from './engine.js';
+export { $, $$, Util } from './utils.js';
+export { Hash, LocalStorage, State } from './core.js';
+export const __unsafeRefreshState = _scanTree;

@@ -1,4 +1,8 @@
-// src/observer.js
+/**
+ * Observer Module
+ * Core reactivity logic.
+ */
+
 let __activeBinding = null;
 let __noWriteBack = null;
 
@@ -76,3 +80,6 @@ export function NewState(defaults = {}, getter = null, setter = null) {
         }
     });
 }
+
+// 全局挂载
+globalThis.NewState = NewState;

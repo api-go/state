@@ -1,6 +1,10 @@
-// src/utils.js
+/**
+ * Utils Module
+ * Provides Util, $, and $$ helpers.
+ */
+
 export const Util = {
-    clone: window.structuredClone || (obj => JSON.parse(JSON.stringify(obj))),
+    clone: globalThis.structuredClone || (obj => JSON.parse(JSON.stringify(obj))),
     base64: str => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
     unbase64: str => new TextDecoder().decode(Uint8Array.from(atob(str), c => c.charCodeAt(0))),
     urlbase64: str => Util.base64(str).replace(/[+/=]/g, m => ({ '+': '-', '/': '', '=': '' }[m])),
@@ -42,6 +46,12 @@ export const Util = {
             avg: () => total / count
         }
     },
-}
+};
 
+export const $ = (a, b) => b ? a.querySelector(b) : document.querySelector(a);
+export const $$ = (a, b) => b ? a.querySelectorAll(b) : document.querySelectorAll(a);
+
+// 全局挂载
 globalThis.Util = Util;
+globalThis.$ = $;
+globalThis.$$ = $$;
