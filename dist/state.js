@@ -1,8 +1,72 @@
 (function(global, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(global.ApigoState = {}));
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(global.ApigoState = global.ApigoState || {}));
 })(this, function(exports2) {
   "use strict";
-  var _a;
+  var _a, _b;
+  const Util = {
+    clone: globalThis.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
+    base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
+    unbase64: (str) => new TextDecoder().decode(Uint8Array.from(atob(str), (c) => c.charCodeAt(0))),
+    urlbase64: (str) => Util.base64(str).replace(/[+/=]/g, (m) => ({ "+": "-", "/": "", "=": "" })[m]),
+    unurlbase64: (str) => Util.unbase64(str.replace(/[-_.]/g, (m) => ({ "-": "+", "_": "/", ".": "=" })[m]).padEnd(Math.ceil(str.length / 4) * 4, "=")),
+    safeJson: (str) => {
+      try {
+        return JSON.parse(str);
+      } catch {
+        return null;
+      }
+    },
+    updateDefaults: (obj, defaults) => {
+      for (const k in defaults) if (obj[k] === void 0) obj[k] = defaults[k];
+    },
+    copyFunction: (toObj, fromObj, ...funcNames) => {
+      funcNames.forEach((name) => toObj[name] = fromObj[name].bind(fromObj));
+    },
+    getFunctionBody: (fn) => {
+      const code = fn.toString();
+      return code.slice(code.indexOf("{") + 1, code.lastIndexOf("}")).trim();
+    },
+    makeDom: (html) => {
+      if (html.includes(">\n")) html = html.replace(/>\s+</g, "><").trim();
+      const node = document.createElement("div");
+      node.innerHTML = html;
+      return node.children[0];
+    },
+    newAvg: () => {
+      let total = 0, count = 0, avg = 0;
+      return {
+        add: (v) => {
+          total += v;
+          count++;
+          return avg = total / count;
+        },
+        get: () => avg,
+        clear: () => {
+          total = 0, count = 0, avg = 0;
+        }
+      };
+    },
+    newTimeCount: () => {
+      let startTime = 0, total = 0, count = 0;
+      return {
+        start: () => startTime = (/* @__PURE__ */ new Date()).getTime(),
+        end: () => {
+          const endTime = (/* @__PURE__ */ new Date()).getTime();
+          const left = endTime - startTime;
+          startTime = endTime;
+          total += left;
+          count++;
+          return left;
+        },
+        avg: () => total / count
+      };
+    }
+  };
+  const $ = (a, b) => b ? a.querySelector(b) : document.querySelector(a);
+  const $$ = (a, b) => b ? a.querySelectorAll(b) : document.querySelectorAll(a);
+  globalThis.Util = Util;
+  globalThis.$ = $;
+  globalThis.$$ = $$;
   let __activeBinding = null;
   let __noWriteBack = null;
   const _setActiveBinding = (val) => __activeBinding = val;
@@ -70,14 +134,67 @@
       }
     });
   }
-  const $ = (a, b) => b ? a.querySelector(b) : document.querySelector(a);
-  const $$ = (a, b) => b ? a.querySelectorAll(b) : document.querySelectorAll(a);
+  globalThis.NewState = NewState;
+  let _hashParams = new URLSearchParams(typeof globalThis !== "undefined" ? ((_b = (_a = globalThis.location) == null ? void 0 : _a.hash) == null ? void 0 : _b.substring(1)) || "" : "");
+  const Hash = NewState({}, (k) => Util.safeJson(_hashParams.get(k)), (k, v) => {
+    const oldStr = _hashParams.get(k);
+    const newStr = v === void 0 ? void 0 : JSON.stringify(v);
+    if (oldStr === newStr || oldStr === null && newStr === void 0) return;
+    v === void 0 ? _hashParams.delete(k) : _hashParams.set(k, newStr);
+    globalThis.location.hash = "#" + _hashParams.toString();
+  });
+  if (typeof globalThis !== "undefined") {
+    globalThis.addEventListener("hashchange", () => {
+      var _a2;
+      const newParams = new URLSearchParams(((_a2 = globalThis.location.hash) == null ? void 0 : _a2.substring(1)) || "");
+      const keys = /* @__PURE__ */ new Set([..._hashParams.keys(), ...newParams.keys()]);
+      _hashParams = newParams;
+      keys.forEach((k) => Hash[k] = Hash[k]);
+    });
+  }
+  const LocalStorage = NewState({}, (k) => Util.safeJson(localStorage.getItem(k)), (k, v) => {
+    const oldStr = localStorage.getItem(k);
+    const newStr = v === void 0 ? void 0 : JSON.stringify(v);
+    if (oldStr === newStr || oldStr === null && newStr === void 0) return;
+    v === void 0 ? localStorage.removeItem(k) : localStorage.setItem(k, newStr);
+  });
+  const State = NewState({
+    exitBlocks: 0
+  });
+  globalThis.Hash = Hash;
+  globalThis.LocalStorage = LocalStorage;
+  globalThis.State = State;
+  let _disableRunCodeError = false;
+  const setDisableRunCodeError = (value) => {
+    _disableRunCodeError = value;
+  };
+  const _fnCache = /* @__PURE__ */ new Map();
+  function _runCode(code, vars, thisObj, extendVars) {
+    const allVars = { ...extendVars || {}, ...vars || {} };
+    const argKeys = Object.keys(allVars);
+    const argValues = Object.values(allVars);
+    const cacheKey = code + argKeys.join(",");
+    try {
+      let fn = _fnCache.get(cacheKey);
+      if (!fn) {
+        fn = new Function("Hash", "LocalStorage", "State", ...argKeys, code);
+        _fnCache.set(cacheKey, fn);
+      }
+      return fn.apply(thisObj, [globalThis.Hash, globalThis.LocalStorage, globalThis.State, ...argValues]);
+    } catch (e) {
+      if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
+      return null;
+    }
+  }
+  function _returnCode(code, vars, thisObj, extendVars) {
+    if (code.includes("${")) return _runCode("return `" + code + "`", vars, thisObj, extendVars);
+    else return _runCode("return " + code, vars, thisObj, extendVars);
+  }
   const _components = /* @__PURE__ */ new Map();
   const _pendingTemplates = [];
   const Component = {
     getTemplate: (name) => document.querySelector(`template[component="${name.toUpperCase()}"]`),
     register: (name, setupFunc, templateNode = null, ...globalNodes) => {
-      console.log("Component.register:", name.toUpperCase());
       _components.set(name.toUpperCase(), setupFunc);
       if (document.readyState !== "loading") Component._addTemplate(name, templateNode, globalNodes);
       else _pendingTemplates.push([name, templateNode, globalNodes]);
@@ -111,7 +228,9 @@
       });
     }
     to.classList.add(...from.classList);
-    Array.from(from.childNodes).forEach((child) => to.appendChild(child));
+    const target = to.tagName === "TEMPLATE" ? to.content : to;
+    const sourceNodes = from.tagName === "TEMPLATE" ? from.content.childNodes : from.childNodes;
+    Array.from(sourceNodes).forEach((child) => target.appendChild(child));
     if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
   }
   function _makeComponent(name, node, scanObj, exists = {}) {
@@ -151,32 +270,6 @@
       }
     }
     if (componentFunc) componentFunc(node);
-  }
-  let _disableRunCodeError = false;
-  function setDisableRunCodeError(value) {
-    _disableRunCodeError = value;
-  }
-  const _fnCache = /* @__PURE__ */ new Map();
-  function _runCode(code, vars, thisObj, extendVars) {
-    const allVars = { ...extendVars || {}, ...vars || {} };
-    const argKeys = Object.keys(allVars);
-    const argValues = Object.values(allVars);
-    const cacheKey = code + argKeys.join(",");
-    try {
-      let fn = _fnCache.get(cacheKey);
-      if (!fn) {
-        fn = new Function("Hash", "LocalStorage", "State", ...argKeys, code);
-        _fnCache.set(cacheKey, fn);
-      }
-      return fn.apply(thisObj, [globalThis.Hash, globalThis.LocalStorage, globalThis.State, ...argValues]);
-    } catch (e) {
-      if (!_disableRunCodeError) console.error(e, extendVars, [code, extendVars, vars, thisObj]);
-      return null;
-    }
-  }
-  function _returnCode(code, vars, thisObj, extendVars) {
-    if (code.includes("${")) return _runCode("return `" + code + "`", vars, thisObj, extendVars);
-    else return _runCode("return " + code, vars, thisObj, extendVars);
   }
   let _translator = (text, args) => {
     if (!text || typeof text !== "string") return text;
@@ -352,12 +445,12 @@
       }
     }
   }
-  const _initBinding = (binding) => {
+  function _initBinding(binding) {
     if (!binding.node._bindings) binding.node._bindings = [];
     binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
     _updateBinding(binding);
-  };
-  const _parseNode = (node, scanObj) => {
+  }
+  function _parseNode(node, scanObj) {
     if (node._bindings) {
       node._states = /* @__PURE__ */ new Set();
       node._bindings.forEach((b) => _updateBinding({ node, ...b }));
@@ -370,7 +463,7 @@
         if (attr.name.startsWith("$.")) {
           const realAttrName = attr.name.slice(2);
           let tpl = _translate(attr.value);
-          if (tpl.includes("this.")) tpl = tpl.replace(/\bthis\./g, "this.parent.");
+          if (scanObj.thisObj && tpl.includes("this.")) tpl = tpl.replace(/\bthis\./g, "this.parent.");
           const result = _returnCode(tpl, { thisNode: node }, { parent: scanObj.thisObj || node }, node._ref || {});
           let o = node;
           const prop = realAttrName.split(".");
@@ -396,7 +489,7 @@
     } else {
       attrs = Array.from(node.attributes).filter((a) => (a.name.startsWith("$") || a.name.startsWith("st-")) && !["$if", "$each", "st-if", "st-each"].includes(a.name) || a.name.includes("."));
     }
-    if (node._thisObj && scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
+    if (node._thisObj && scanObj.thisObj && node._thisObj !== scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
     if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
     if (!node._ref) node._ref = scanObj.extendVars || {};
     node._states = /* @__PURE__ */ new Set();
@@ -438,8 +531,15 @@
     if (node._hasOnLoad || node._componentInitialized) Promise.resolve().then(() => node.dispatchEvent(new Event("load", { bubbles: false })));
     if (node._hasOnUpdate) node.dispatchEvent(new Event("update", { bubbles: false }));
     if (node._thisObj) scanObj.thisObj = node._thisObj;
-  };
+  }
   const _scanTree = (node, scanObj = {}) => {
+    if (node.nodeType === 3) {
+      if (node._stTranslated) return;
+      const translated = _translate(node.textContent);
+      if (translated !== node.textContent) node.textContent = translated;
+      node._stTranslated = true;
+      return;
+    }
     if (node.nodeType !== 1) return;
     if (!node._stTranslated) {
       Array.from(node.attributes).forEach((attr) => {
@@ -520,116 +620,14 @@
     });
     node.childNodes && node.childNodes.forEach((child) => _unbindTree(child));
   };
-  const _unsafeRefreshState = _scanTree;
-  const Util = {
-    clone: window.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
-    base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
-    unbase64: (str) => new TextDecoder().decode(Uint8Array.from(atob(str), (c) => c.charCodeAt(0))),
-    urlbase64: (str) => Util.base64(str).replace(/[+/=]/g, (m) => ({ "+": "-", "/": "", "=": "" })[m]),
-    unurlbase64: (str) => Util.unbase64(str.replace(/[-_.]/g, (m) => ({ "-": "+", "_": "/", ".": "=" })[m]).padEnd(Math.ceil(str.length / 4) * 4, "=")),
-    safeJson: (str) => {
-      try {
-        return JSON.parse(str);
-      } catch {
-        return null;
-      }
-    },
-    updateDefaults: (obj, defaults) => {
-      for (const k in defaults) if (obj[k] === void 0) obj[k] = defaults[k];
-    },
-    copyFunction: (toObj, fromObj, ...funcNames) => {
-      funcNames.forEach((name) => toObj[name] = fromObj[name].bind(fromObj));
-    },
-    getFunctionBody: (fn) => {
-      const code = fn.toString();
-      return code.slice(code.indexOf("{") + 1, code.lastIndexOf("}")).trim();
-    },
-    makeDom: (html) => {
-      if (html.includes(">\n")) html = html.replace(/>\s+</g, "><").trim();
-      const node = document.createElement("div");
-      node.innerHTML = html;
-      return node.children[0];
-    },
-    newAvg: () => {
-      let total = 0, count = 0, avg = 0;
-      return {
-        add: (v) => {
-          total += v;
-          count++;
-          return avg = total / count;
-        },
-        get: () => avg,
-        clear: () => {
-          total = 0, count = 0, avg = 0;
-        }
-      };
-    },
-    newTimeCount: () => {
-      let startTime = 0, total = 0, count = 0;
-      return {
-        start: () => startTime = (/* @__PURE__ */ new Date()).getTime(),
-        end: () => {
-          const endTime = (/* @__PURE__ */ new Date()).getTime();
-          const left = endTime - startTime;
-          startTime = endTime;
-          total += left;
-          count++;
-          return left;
-        },
-        avg: () => total / count
-      };
-    }
-  };
-  globalThis.Util = Util;
-  let _hashParams = new URLSearchParams(((_a = window.location.hash) == null ? void 0 : _a.substring(1)) || "");
-  const Hash = NewState({}, (k) => Util.safeJson(_hashParams.get(k)), (k, v) => {
-    const oldStr = _hashParams.get(k);
-    const newStr = v === void 0 ? void 0 : JSON.stringify(v);
-    if (oldStr === newStr || oldStr === null && newStr === void 0) return;
-    v === void 0 ? _hashParams.delete(k) : _hashParams.set(k, newStr);
-    window.location.hash = "#" + _hashParams.toString();
-  });
-  if (typeof window !== "undefined") {
-    window.addEventListener("hashchange", () => {
-      var _a2;
-      const newParams = new URLSearchParams(((_a2 = window.location.hash) == null ? void 0 : _a2.substring(1)) || "");
-      const keys = /* @__PURE__ */ new Set([..._hashParams.keys(), ...newParams.keys()]);
-      _hashParams = newParams;
-      keys.forEach((k) => Hash[k] = Hash[k]);
-    });
-  }
-  const LocalStorage = NewState({}, (k) => Util.safeJson(localStorage.getItem(k)), (k, v) => {
-    const oldStr = localStorage.getItem(k);
-    const newStr = v === void 0 ? void 0 : JSON.stringify(v);
-    if (oldStr === newStr || oldStr === null && newStr === void 0) return;
-    v === void 0 ? localStorage.removeItem(k) : localStorage.setItem(k, newStr);
-  });
-  const State = NewState({
-    exitBlocks: 0
-  });
-  globalThis.Hash = Hash;
-  globalThis.LocalStorage = LocalStorage;
-  globalThis.State = State;
-  const ApigoState = {
-    NewState,
-    Component,
-    $,
-    $$,
-    RefreshState: _unsafeRefreshState,
-    SetTranslator,
-    _scanTree,
-    _unbindTree,
-    Util,
-    Hash,
-    LocalStorage,
-    State
-  };
-  if (typeof window !== "undefined") {
-    window.ApigoState = ApigoState;
-  }
+  globalThis.Component = Component;
+  globalThis.SetTranslator = SetTranslator;
+  globalThis.__unsafeRefreshState = _scanTree;
   if (typeof document !== "undefined") {
     const init = () => {
-      Component._initPending();
+      if (globalThis.Component && globalThis.Component._initPending) {
+        globalThis.Component._initPending();
+      }
       const htmlNode = document.documentElement;
       if (!htmlNode.hasAttribute("$data-bs-theme") && !htmlNode.hasAttribute("data-bs-theme")) {
         htmlNode.setAttribute("$data-bs-theme", "LocalStorage.darkMode?'dark':'light'");
@@ -647,17 +645,16 @@
     if (document.readyState !== "loading") init();
     else document.addEventListener("DOMContentLoaded", init, true);
   }
+  const __unsafeRefreshState = _scanTree;
   exports2.$ = $;
   exports2.$$ = $$;
   exports2.Component = Component;
   exports2.Hash = Hash;
   exports2.LocalStorage = LocalStorage;
   exports2.NewState = NewState;
-  exports2.RefreshState = _unsafeRefreshState;
   exports2.SetTranslator = SetTranslator;
   exports2.State = State;
   exports2.Util = Util;
-  exports2._scanTree = _scanTree;
-  exports2._unbindTree = _unbindTree;
+  exports2.__unsafeRefreshState = __unsafeRefreshState;
   Object.defineProperty(exports2, Symbol.toStringTag, { value: "Module" });
 });
