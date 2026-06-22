@@ -22,11 +22,9 @@ try {
   const pkgPath = path.join(__dirname, '../package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
   
-  // 保持原有名称（如果已经带有 @apigo.cc/ 前缀）或替换前缀
-  if (!pkg.name.startsWith('@apigo.cc/')) {
-    const baseName = pkg.name.includes('/') ? pkg.name.split('/')[1] : pkg.name;
-    pkg.name = `@apigo.cc/${baseName}`;
-  }
+  // npm 要求包名全小写，scope + name 强制 toLowerCase
+  const baseName = (pkg.name.includes('/') ? pkg.name.split('/')[1] : pkg.name).toLowerCase();
+  pkg.name = `@apigo.cc/${baseName}`;
   pkg.version = version;
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
