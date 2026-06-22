@@ -213,6 +213,7 @@ export function _updateBinding(binding) {
                     if (existingNodes) {
                         node._keyedNodes.delete(keyVal);
                         existingNodes.forEach(child => {
+                            node.parentNode.insertBefore(child, node);
                             child._ref[indexName] = k;
                             child._ref[asName] = item;
                             _scanTree(child);
