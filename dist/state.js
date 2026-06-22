@@ -4,7 +4,7 @@
   "use strict";
   var _a, _b;
   const Util = {
-    clone: globalThis.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj))),
+    clone: (obj) => JSON.parse(JSON.stringify(obj)),
     base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
     unbase64: (str) => new TextDecoder().decode(Uint8Array.from(atob(str), (c) => c.charCodeAt(0))),
     urlbase64: (str) => Util.base64(str).replace(/[+/=]/g, (m) => ({ "+": "-", "/": "", "=": "" })[m]),
@@ -385,6 +385,7 @@
             if (existingNodes) {
               node._keyedNodes.delete(keyVal);
               existingNodes.forEach((child) => {
+                node.parentNode.insertBefore(child, node);
                 child._ref[indexName] = k;
                 child._ref[asName] = item;
                 _scanTree(child);
