@@ -42,12 +42,26 @@ export function _mergeNode(from, to, scanObj, exists = {}) {
             if (attr.name === 'style') {
                 if (to.hasAttribute('style')) to.setAttribute('style', `${attr.value}; ${to.getAttribute('style')}`);
                 else to.setAttribute('style', attr.value);
-            } else if (!to.hasAttribute(attr.name)) {
+            } else if (to.hasAttribute(attr.name)) {
+                const isClass = ['$class', 'st-class'].includes(attr.name);
+                const isStyle = ['$style', 'st-style'].includes(attr.name);
+                if (isClass || isStyle) {
+                    const oldVal = to.getAttribute(attr.name);
+                    const newVal = attr.value;
+                    const delimiter = isClass ? " " : "; ";
+                    const oldExpr = oldVal.includes('${') ? oldVal : `\${${oldVal}}`;
+                    const newExpr = newVal.includes('${') ? newVal : `\${${newVal}}`;
+                    to.setAttribute(attr.name, `${newExpr}${delimiter}${oldExpr}`);
+                }
+            } else {
                 to.setAttribute(attr.name, attr.value);
             }
         });
     }
+    const toClassList = [...to.classList];
+    to.className = '';
     to.classList.add(...from.classList);
+    to.classList.add(...toClassList);
     
     const target = to.tagName === 'TEMPLATE' ? to.content : to;
     const sourceNodes = from.tagName === 'TEMPLATE' ? from.content.childNodes : from.childNodes;
@@ -145,6 +159,7 @@ export function _updateBinding(binding) {
         try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
     }
     _setActiveBinding(null);
+    binding.lastResult = result;
 
     if (binding.prop) {
         const prop = binding.prop;
@@ -262,7 +277,21 @@ export function _updateBinding(binding) {
                 if (attr === 'text') node.textContent = result ?? '';
                 else if (attr === 'html') node.innerHTML = result ?? '';
                 else if (node.tagName === 'IMG' && attr === 'src' && result.includes('.svg')) node.setAttribute('_src', result ?? '');
-                else node.setAttribute(attr, result ?? '');
+                else if (attr === 'class') {
+                    if (node._staticClasses === undefined) {
+                        node._staticClasses = node.getAttribute('class') || '';
+                    }
+                    const staticClasses = node._staticClasses;
+                    const finalClass = result ? (staticClasses ? `${result} ${staticClasses}` : result) : staticClasses;
+                    node.setAttribute('class', finalClass.trim().replace(/\s+/g, ' '));
+                } else if (attr === 'style') {
+                    if (node._staticStyles === undefined) {
+                        node._staticStyles = node.getAttribute('style') || '';
+                    }
+                    const staticStyles = node._staticStyles;
+                    const finalStyle = result ? (staticStyles ? `${result}; ${staticStyles}` : result) : staticStyles;
+                    node.setAttribute('style', finalStyle.trim().replace(/;;+/g, ';').replace(/^;+\s*|;\s*$/g, ''));
+                } else node.setAttribute(attr, result ?? '');
             }
         }
     }
@@ -309,10 +338,11 @@ export function _parseNode(node, scanObj) {
 
     let attrs = [];
     if (node.tagName === 'TEMPLATE') {
-        ['$if', '$each', 'st-if', 'st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
+        ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
     } else {
-        attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each'].includes(a.name) || a.name.includes('.'));
+        attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(a.name) || a.name.includes('.'));
     }
+
 
     if (node._thisObj && scanObj.thisObj && node._thisObj !== scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
     if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
@@ -374,9 +404,9 @@ export const _scanTree = (node, scanObj = {}) => {
         node._stTranslated = true;
     }
 
-    if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each'))) {
+    if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each') || node.hasAttribute('$$if') || node.hasAttribute('$$each') || node.hasAttribute('st-st-if') || node.hasAttribute('st-st-each'))) {
         const template = document.createElement('TEMPLATE');
-        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each')) && ['as', 'index'].includes(attr.name)));
+        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each')) && ['as', 'index'].includes(attr.name)));
         attrs.forEach(attr => {
             template.setAttribute(attr.name, attr.value);
             node.removeAttribute(attr.name);
@@ -388,13 +418,13 @@ export const _scanTree = (node, scanObj = {}) => {
         return;
     }
 
-    if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each'))) {
+    if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if') || node.hasAttribute('$$if') || node.hasAttribute('st-st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each'))) {
         const template = document.createElement('TEMPLATE');
-        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each'].includes(attr.name));
+        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name));
         const attr = attrs[attrs.length - 1];
         template.setAttribute(attr.name, attr.value);
         node.removeAttribute(attr.name);
-        if (attr.name === '$each' || attr.name === 'st-each') {
+        if (['$each', 'st-each', '$$each', 'st-st-each'].includes(attr.name)) {
             Array.from(node.attributes).filter(attr => ['as', 'index'].includes(attr.name)).forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
         }
         Array.from(node.content.childNodes).forEach(child => template.content.appendChild(child));

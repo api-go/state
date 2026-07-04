@@ -32,8 +32,8 @@ test('modular unit tests and benchmark', async ({ page }) => {
         const items = [];
         for(let i=0; i<1000; i++) items.push({val: 'item ' + i});
         window.state.benchItems = items;
-        const { ___unsafeRefreshState } = await import('@apigo.cc/state');
-        ___unsafeRefreshState(document.documentElement);
+        const { __unsafeRefreshState } = window.ApigoState;
+        __unsafeRefreshState(document.documentElement);
         return performance.now() - start;
     });
     console.log(`BENCHMARK: 1000 items initial render: ${renderTime.toFixed(2)}ms`);
@@ -51,10 +51,10 @@ test('modular unit tests and benchmark', async ({ page }) => {
 
     // Extreme Data Test
     await page.evaluate(async () => {
-        const { ___unsafeRefreshState } = await import('@apigo.cc/state');
+        const { __unsafeRefreshState } = window.ApigoState;
         document.body.innerHTML = '<div id="extreme" $each="state.extreme"></div>';
         window.state.extreme = null;
-        ___unsafeRefreshState(document.getElementById('extreme'));
+        __unsafeRefreshState(document.getElementById('extreme'));
         window.state.extreme = undefined;
         window.state.extreme = { a: 1 };
         window.state.extreme = [1, 2];
