@@ -35,8 +35,8 @@ if (typeof document !== 'undefined') {
     else document.addEventListener('DOMContentLoaded', init, true);
 }
 
-export { NewState } from './observer.js';
+export { NewState, _setActiveBinding as setActiveBinding, _onNotifyUpdate as onNotifyUpdate } from './observer.js';
 export { Component, SetTranslator } from './engine.js';
 export { $, $$, Util } from './utils.js';
-export { Hash, LocalStorage, State } from './core.js';
+export { Hash, LocalStorage, State, _runCode, _returnCode } from './core.js';
 export const __unsafeRefreshState = _scanTree;

@@ -1,14 +1,19 @@
 // test/merging.test.js
 window.testMerging = async function() {
-    const { Component, ___unsafeRefreshState, $ } = ApigoState;
+    const { Component, __unsafeRefreshState, $ } = ApigoState;
     console.log('Testing complex class/style merging (DataTable Resizer scenario)...');
 
     Component.register('Resizer-Real', container => {
         container.isVertical = true;
-    }, document.createRange().createContextualFragment('<div $class="tpl-static ${this.isVertical?\'tpl-v\':\'tpl-h\'}" $style="color:blue"></div>').firstChild);
+    }, document.createRange().createContextualFragment('<div $class="tpl-static ${this.isVertical?\'tpl-v\':\'tpl-h\'}" $style="\'color:blue\'"></div>').firstChild);
 
-    document.body.innerHTML = '<Resizer-Real id="res-inst" class="ins-static" style="opacity:0.5"></Resizer-Real>';
-    ___unsafeRefreshState(document.documentElement);
+    const res = document.createElement('Resizer-Real');
+    res.id = 'res-inst';
+    res.className = 'ins-static';
+    res.setAttribute('style', 'opacity:0.5');
+    res.setAttribute('$class', "'ins-dynamic'");
+    document.body.appendChild(res);
+    __unsafeRefreshState(document.documentElement);
     await new Promise(r => setTimeout(r, 50));
 
     const inst = $('#res-inst');
@@ -17,8 +22,13 @@ window.testMerging = async function() {
     
     const classList = Array.from(inst.classList);
     console.log('Final ClassList:', classList);
-    if (!classList.includes('ins-static') || !classList.includes('tpl-static')) {
+    if (!classList.includes('ins-static') || !classList.includes('tpl-static') || !classList.includes('ins-dynamic')) {
         throw new Error('Class merging failed');
+    }
+    const tplIndex = classList.indexOf('tpl-static');
+    const insIndex = classList.indexOf('ins-static');
+    if (tplIndex > insIndex) {
+        throw new Error('Class merging order incorrect: tpl-static should be before ins-static');
     }
 
     const style = inst.getAttribute('style');

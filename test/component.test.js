@@ -1,16 +1,18 @@
 // test/component.test.js
 window.testComponent = async function() {
-    const { Component, ___unsafeRefreshState, $ } = ApigoState;
+    const { Component, __unsafeRefreshState, $ } = ApigoState;
     console.log('Testing component.js...');
     
     // 1. Register component
     Component.register('TestComp', container => {
         container.state.msg = 'Component Content';
-    }, document.createRange().createContextualFragment('<div id="comp-inner" $text="this.state.msg"></div>').firstChild);
+    }, document.createRange().createContextualFragment('<div><div id="comp-inner" $text="this.state.msg"></div></div>').firstChild);
     
     // 2. Render component
-    document.body.innerHTML = '<TestComp id="comp-inst"></TestComp>';
-    ___unsafeRefreshState(document.documentElement);
+    const comp = document.createElement('TestComp');
+    comp.id = 'comp-inst';
+    document.body.appendChild(comp);
+    __unsafeRefreshState(document.documentElement);
     
     const instance = $('#comp-inst');
     if (!instance) throw new Error('Component instance not found');

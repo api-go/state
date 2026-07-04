@@ -1,14 +1,16 @@
 // test/priority.test.js
 window.testPriority = async function() {
-    const { ___unsafeRefreshState, $, NewState } = ApigoState;
+    const { __unsafeRefreshState, $, NewState } = ApigoState;
     console.log('Testing directive priorities...');
     
     // Test $if vs $text (if should hide text)
-    document.body.innerHTML = '<div id="prio-test" $if="state.hide" $text="state.msg"></div>';
+    document.body.innerHTML = '<div id="prio-test" $if="!state.hide" $text="state.msg"></div>';
     const state = NewState({ hide: false, msg: 'visible' });
+    window.state = state;
     document.documentElement._thisObj = { state };
-    ___unsafeRefreshState(document.documentElement);
+    __unsafeRefreshState(document.documentElement);
     
+    await new Promise(r => setTimeout(r, 20));
     if ($('#prio-test').textContent !== 'visible') throw new Error('Basic visibility failed');
     
     state.hide = true;
