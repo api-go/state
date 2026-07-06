@@ -12,469 +12,469 @@ const _components = new Map();
 const _pendingTemplates = [];
 
 export const Component = {
-    getTemplate: name => document.querySelector(`template[component="${name.toUpperCase()}"]`),
-    register: (name, setupFunc, templateNode = null, ...globalNodes) => {
-        _components.set(name.toUpperCase(), setupFunc);
-        if (document.readyState !== 'loading') Component._addTemplate(name, templateNode, globalNodes);
-        else _pendingTemplates.push([name, templateNode, globalNodes]);
-    },
-    exists: (name) => _components.has(name.toUpperCase()),
-    getSetupFunction: (name) => _components.get(name.toUpperCase()),
-    _addTemplate: (name, templateNode, globalNodes) => {
-        if (templateNode) {
-            const template = document.createElement('TEMPLATE');
-            template.setAttribute('component', name.toUpperCase());
-            template.content.appendChild(templateNode);
-            document.body.appendChild(template);
-        }
-        if (globalNodes) globalNodes.forEach(node => document.body.appendChild(node));
-    },
-    _initPending: () => {
-        _pendingTemplates.forEach(([name, templateNode, globalNodes]) => Component._addTemplate(name, templateNode, globalNodes));
-        _pendingTemplates.length = 0;
-    }
+	getTemplate: name => document.querySelector(`template[component="${name.toUpperCase()}"]`),
+	register: (name, setupFunc, templateNode = null, ...globalNodes) => {
+		_components.set(name.toUpperCase(), setupFunc);
+		if (document.readyState !== 'loading') Component._addTemplate(name, templateNode, globalNodes);
+		else _pendingTemplates.push([name, templateNode, globalNodes]);
+	},
+	exists: (name) => _components.has(name.toUpperCase()),
+	getSetupFunction: (name) => _components.get(name.toUpperCase()),
+	_addTemplate: (name, templateNode, globalNodes) => {
+		if (templateNode) {
+			const template = document.createElement('TEMPLATE');
+			template.setAttribute('component', name.toUpperCase());
+			template.content.appendChild(templateNode);
+			document.body.appendChild(template);
+		}
+		if (globalNodes) globalNodes.forEach(node => document.body.appendChild(node));
+	},
+	_initPending: () => {
+		_pendingTemplates.forEach(([name, templateNode, globalNodes]) => Component._addTemplate(name, templateNode, globalNodes));
+		_pendingTemplates.length = 0;
+	}
 };
 
 export function _mergeNode(from, to, scanObj, exists = {}) {
-    if (from.attributes) {
-        Array.from(from.attributes).forEach(attr => {
-            if (attr.name === 'class') return;
-            if (attr.name === 'style') {
-                if (to.hasAttribute('style')) to.setAttribute('style', `${attr.value}; ${to.getAttribute('style')}`);
-                else to.setAttribute('style', attr.value);
-            } else if (to.hasAttribute(attr.name)) {
-                const isClass = ['$class', 'st-class'].includes(attr.name);
-                const isStyle = ['$style', 'st-style'].includes(attr.name);
-                if (isClass || isStyle) {
-                    const oldVal = to.getAttribute(attr.name);
-                    const newVal = attr.value;
-                    const delimiter = isClass ? " " : "; ";
-                    const oldExpr = oldVal.includes('${') ? oldVal : `\${${oldVal}}`;
-                    const newExpr = newVal.includes('${') ? newVal : `\${${newVal}}`;
-                    to.setAttribute(attr.name, `${newExpr}${delimiter}${oldExpr}`);
-                }
-            } else {
-                to.setAttribute(attr.name, attr.value);
-            }
-        });
-    }
-    const toClassList = [...to.classList];
-    to.className = '';
-    to.classList.add(...from.classList);
-    to.classList.add(...toClassList);
-    
-    const target = to.tagName === 'TEMPLATE' ? to.content : to;
-    const sourceNodes = from.tagName === 'TEMPLATE' ? from.content.childNodes : from.childNodes;
-    Array.from(sourceNodes).forEach(child => target.appendChild(child));
-    
-    if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
+	if (from.attributes) {
+		Array.from(from.attributes).forEach(attr => {
+			if (attr.name === 'class') return;
+			if (attr.name === 'style') {
+				if (to.hasAttribute('style')) to.setAttribute('style', `${attr.value}; ${to.getAttribute('style')}`);
+				else to.setAttribute('style', attr.value);
+			} else if (to.hasAttribute(attr.name)) {
+				const isClass = ['$class', 'st-class'].includes(attr.name);
+				const isStyle = ['$style', 'st-style'].includes(attr.name);
+				if (isClass || isStyle) {
+					const oldVal = to.getAttribute(attr.name);
+					const newVal = attr.value;
+					const delimiter = isClass ? " " : "; ";
+					const oldExpr = oldVal.includes('${') ? oldVal : `\${${oldVal}}`;
+					const newExpr = newVal.includes('${') ? newVal : `\${${newVal}}`;
+					to.setAttribute(attr.name, `${newExpr}${delimiter}${oldExpr}`);
+				}
+			} else {
+				to.setAttribute(attr.name, attr.value);
+			}
+		});
+	}
+	const toClassList = [...to.classList];
+	to.className = '';
+	to.classList.add(...from.classList);
+	to.classList.add(...toClassList);
+
+	const target = to.tagName === 'TEMPLATE' ? to.content : to;
+	const sourceNodes = from.tagName === 'TEMPLATE' ? from.content.childNodes : from.childNodes;
+	Array.from(sourceNodes).forEach(child => target.appendChild(child));
+
+	if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
 
 export function _makeComponent(name, node, scanObj, exists = {}) {
-    if (exists[name]) return;
-    exists[name] = true;
-    if (scanObj.thisObj) {
-        Array.from(node.attributes).forEach(attr => {
-            if ((attr.name.startsWith('$') || attr.name.startsWith('st-')) && attr.value.includes('this.')) {
-                attr.value = attr.value.replace(/\bthis\./g, 'this.parent.');
-            }
-        });
-    }
-    const componentFunc = Component.getSetupFunction(name);
-    const slots = {};
-    Array.from(node.childNodes).forEach(child => {
-        if (child.nodeType === Node.ELEMENT_NODE && child.hasAttribute('slot')) {
-            slots[child.getAttribute('slot')] = child;
-            child.removeAttribute('slot');
-        }
-    });
-    node.innerHTML = '';
-    node.state = NewState(node.state || {});
-    const template = Component.getTemplate(name);
-    if (template) {
-        const tplnode = template.content.cloneNode(true);
-        if (tplnode.childNodes.length) {
-            const rootNode = tplnode.children[0];
-            if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
-            $$(node, '[slot-id]').forEach(placeholder => {
-                const slotName = placeholder.getAttribute('slot-id');
-                if (slots[slotName]) {
-                    placeholder.removeAttribute('slot-id');
-                    placeholder.innerHTML = '';
-                    _mergeNode(slots[slotName], placeholder, scanObj, exists);
-                }
-            });
-        }
-    }
-    if (componentFunc) componentFunc(node);
+	if (exists[name]) return;
+	exists[name] = true;
+	if (scanObj.thisObj) {
+		Array.from(node.attributes).forEach(attr => {
+			if ((attr.name.startsWith('$') || attr.name.startsWith('st-')) && attr.value.includes('this.')) {
+				attr.value = attr.value.replace(/\bthis\./g, 'this.parent.');
+			}
+		});
+	}
+	const componentFunc = Component.getSetupFunction(name);
+	const slots = {};
+	Array.from(node.childNodes).forEach(child => {
+		if (child.nodeType === Node.ELEMENT_NODE && child.hasAttribute('slot')) {
+			slots[child.getAttribute('slot')] = child;
+			child.removeAttribute('slot');
+		}
+	});
+	node.innerHTML = '';
+	node.state = NewState(node.state || {});
+	const template = Component.getTemplate(name);
+	if (template) {
+		const tplnode = template.content.cloneNode(true);
+		if (tplnode.childNodes.length) {
+			const rootNode = tplnode.children[0];
+			if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
+			$$(node, '[slot-id]').forEach(placeholder => {
+				const slotName = placeholder.getAttribute('slot-id');
+				if (slots[slotName]) {
+					placeholder.removeAttribute('slot-id');
+					placeholder.innerHTML = '';
+					_mergeNode(slots[slotName], placeholder, scanObj, exists);
+				}
+			});
+		}
+	}
+	if (componentFunc) componentFunc(node);
 }
 
 // --- DOM Engine Logic ---
 let _translator = (text, args) => {
-    if (!text || typeof text !== 'string') return text;
-    return text.replace(/\{(.+?)\}/g, (match, key) => args.hasOwnProperty(key) ? args[key] : match);
+	if (!text || typeof text !== 'string') return text;
+	return text.replace(/\{(.+?)\}/g, (match, key) => args.hasOwnProperty(key) ? args[key] : match);
 };
 export const SetTranslator = (fn) => _translator = fn;
 
 const _translate = (text) => {
-    if (!text || typeof text !== 'string' || !text.includes('{#')) return text;
-    return text.replace(/\{#(.+?)#\}/g, (m, content) => {
-        const parts = content.split('||').map(s => s.trim());
-        const args = {};
-        if (parts.length > 1) {
-            const matches = parts[0].match(/\{(.+?)\}/g);
-            if (matches) matches.forEach((match, i) => args[match.substring(1, match.length - 1)] = parts[i + 1] || '');
-        }
-        return _translator(parts[0], args);
-    });
+	if (!text || typeof text !== 'string' || !text.includes('{#')) return text;
+	return text.replace(/\{#(.+?)#\}/g, (m, content) => {
+		const parts = content.split('||').map(s => s.trim());
+		const args = {};
+		if (parts.length > 1) {
+			const matches = parts[0].match(/\{(.+?)\}/g);
+			if (matches) matches.forEach((match, i) => args[match.substring(1, match.length - 1)] = parts[i + 1] || '');
+		}
+		return _translator(parts[0], args);
+	});
 };
 
 if (typeof document !== 'undefined') {
-    try { document.createElement('div').setAttribute('$t', '1'); } catch (e) {
-        const originalSetAttribute = Element.prototype.setAttribute;
-        Element.prototype.setAttribute = function (name, value) {
-            if (!name.startsWith('$')) return originalSetAttribute.call(this, name, value);
-            return originalSetAttribute.call(this, 'st-' + name.substring(1), value);
-        };
-    }
+	try { document.createElement('div').setAttribute('$t', '1'); } catch (e) {
+		const originalSetAttribute = Element.prototype.setAttribute;
+		Element.prototype.setAttribute = function (name, value) {
+			if (!name.startsWith('$')) return originalSetAttribute.call(this, name, value);
+			return originalSetAttribute.call(this, 'st-' + name.substring(1), value);
+		};
+	}
 }
 
 _onNotifyUpdate((binding) => _updateBinding(binding));
 
 export function _clearRenderedNodes(node) {
-    if (node._renderedNodes) node._renderedNodes.forEach(nodes => nodes.forEach(child => {
-        child.remove();
-        if (child._renderedNodes) _clearRenderedNodes(child);
-    }));
+	if (node._renderedNodes) node._renderedNodes.forEach(nodes => nodes.forEach(child => {
+		child.remove();
+		if (child._renderedNodes) _clearRenderedNodes(child);
+	}));
 }
 
 export function _updateBinding(binding) {
-    const node = binding.node;
-    if (!node.isConnected && node.tagName !== 'TEMPLATE') return;
+	const node = binding.node;
+	if (!node.isConnected && node.tagName !== 'TEMPLATE') return;
 
-    _setActiveBinding(binding);
-    let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
+	_setActiveBinding(binding);
+	let result = binding.exp ? (binding.tpl ? _returnCode(binding.tpl, { thisNode: node }, node._thisObj || node, node._ref || null) : null) : binding.tpl;
 
-    if (binding.exp === 2 && typeof result === 'string') {
-        try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
-    }
-    _setActiveBinding(null);
-    binding.lastResult = result;
+	if (binding.exp === 2 && typeof result === 'string') {
+		try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
+	}
+	_setActiveBinding(null);
+	binding.lastResult = result;
 
-    if (binding.prop) {
-        const prop = binding.prop;
-        let o = node;
-        for (let i = 0; i < prop.length - 1; i++) {
-            if (!prop[i]) continue;
-            if (o[prop[i]] == null) o[prop[i]] = {};
-            o = o[prop[i]];
-            if (typeof o !== 'object') break;
-        }
-        if (typeof o === 'object' && o !== null) {
-            const lk = prop[prop.length - 1];
-            if (lk) {
-                if (typeof result === 'object' && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
-                const lo = o[lk];
-                if (typeof lo === 'object' && lo != null && lo.__watch) Object.assign(lo, result);
-                else { if (o[lk] !== result) o[lk] = result; }
-            } else if (typeof result === 'object' && result != null && !Array.isArray(result)) {
-                Object.assign(o, result);
-            }
-        }
-    } else if (binding.attr) {
-        const attr = binding.attr;
-        if (attr === 'if') {
-            if (result) {
-                if (!node._renderedNodes || node._renderedNodes.length === 0) {
-                    node._children.forEach(child => {
-                        node.parentNode.insertBefore(child, node);
-                        child._ref = { ...node._ref };
-                        child._thisObj = node._thisObj;
-                    });
-                    node._renderedNodes = [node._children];
-                }
-            } else {
-                _clearRenderedNodes(node);
-                node._renderedNodes = [];
-            }
-        } else if (attr === 'each') {
-            if (result && typeof result === 'object') {
-                const asName = node.getAttribute('as') || 'item';
-                const indexName = node.getAttribute('index') || 'index';
-                const keyName = node.getAttribute('key');
-                let keys, getVal;
-                if (result instanceof Map) {
-                    keys = Array.from(result.keys()); getVal = k => result.get(k);
-                } else if (typeof result[Symbol.iterator] === 'function') {
-                    const arr = Array.isArray(result) ? result : Array.from(result);
-                    keys = new Array(arr.length);
-                    for (let i = 0; i < arr.length; i++) keys[i] = i;
-                    getVal = k => arr[k];
-                } else {
-                    keys = Object.keys(result); getVal = k => result[k];
-                }
+	if (binding.prop) {
+		const prop = binding.prop;
+		let o = node;
+		for (let i = 0; i < prop.length - 1; i++) {
+			if (!prop[i]) continue;
+			if (o[prop[i]] == null) o[prop[i]] = {};
+			o = o[prop[i]];
+			if (typeof o !== 'object') break;
+		}
+		if (typeof o === 'object' && o !== null) {
+			const lk = prop[prop.length - 1];
+			if (lk) {
+				if (typeof result === 'object' && result != null && !Array.isArray(result) && o[lk] == null) o[lk] = {};
+				const lo = o[lk];
+				if (typeof lo === 'object' && lo != null && lo.__watch) Object.assign(lo, result);
+				else { if (o[lk] !== result) o[lk] = result; }
+			} else if (typeof result === 'object' && result != null && !Array.isArray(result)) {
+				Object.assign(o, result);
+			}
+		}
+	} else if (binding.attr) {
+		const attr = binding.attr;
+		if (attr === 'if') {
+			if (result) {
+				if (!node._renderedNodes || node._renderedNodes.length === 0) {
+					node._children.forEach(child => {
+						node.parentNode.insertBefore(child, node);
+						child._ref = { ...node._ref };
+						child._thisObj = node._thisObj;
+					});
+					node._renderedNodes = [node._children];
+				}
+			} else {
+				_clearRenderedNodes(node);
+				node._renderedNodes = [];
+			}
+		} else if (attr === 'each') {
+			if (result && typeof result === 'object') {
+				const asName = node.getAttribute('as') || 'item';
+				const indexName = node.getAttribute('index') || 'index';
+				const keyName = node.getAttribute('key');
+				let keys, getVal;
+				if (result instanceof Map) {
+					keys = Array.from(result.keys()); getVal = k => result.get(k);
+				} else if (typeof result[Symbol.iterator] === 'function') {
+					const arr = Array.isArray(result) ? result : Array.from(result);
+					keys = new Array(arr.length);
+					for (let i = 0; i < arr.length; i++) keys[i] = i;
+					getVal = k => arr[k];
+				} else {
+					keys = Object.keys(result); getVal = k => result[k];
+				}
 
-                if (!node._keyedNodes) node._keyedNodes = new Map();
-                const newKeyedNodes = new Map();
-                const currentRenderedNodes = [];
+				if (!node._keyedNodes) node._keyedNodes = new Map();
+				const newKeyedNodes = new Map();
+				const currentRenderedNodes = [];
 
-                keys.forEach((k, i) => {
-                    const item = getVal(k);
-                    const rawKey = keyName ? (item && typeof item === 'object' ? item[keyName] : item) : k;
-                    const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_${i}` : rawKey;
+				keys.forEach((k, i) => {
+					const item = getVal(k);
+					const rawKey = keyName ? (item && typeof item === 'object' ? item[keyName] : item) : k;
+					const keyVal = (rawKey === undefined || rawKey === null || newKeyedNodes.has(rawKey)) ? `st_key_${i}` : rawKey;
 
-                    let existingNodes = node._keyedNodes.get(keyVal);
+					let existingNodes = node._keyedNodes.get(keyVal);
 
-                    if (existingNodes) {
-                        node._keyedNodes.delete(keyVal);
-                        existingNodes.forEach(child => {
-                            node.parentNode.insertBefore(child, node);
-                            child._ref[indexName] = k;
-                            child._ref[asName] = item;
-                            _scanTree(child);
-                        });
-                    } else {
-                        existingNodes = [];
-                        node._children.forEach(child => {
-                            const cloned = child.cloneNode(true);
-                            cloned._ref = { ...node._ref, [indexName]: k, [asName]: item };
-                            cloned._thisObj = node._thisObj;
-                            node.parentNode.insertBefore(cloned, node);
-                            existingNodes.push(cloned);
-                        });
-                    }
-                    newKeyedNodes.set(keyVal, existingNodes);
-                    currentRenderedNodes.push(existingNodes);
-                });
+					if (existingNodes) {
+						node._keyedNodes.delete(keyVal);
+						existingNodes.forEach(child => {
+							node.parentNode.insertBefore(child, node);
+							child._ref[indexName] = k;
+							child._ref[asName] = item;
+							_scanTree(child);
+						});
+					} else {
+						existingNodes = [];
+						node._children.forEach(child => {
+							const cloned = child.cloneNode(true);
+							cloned._ref = { ...node._ref, [indexName]: k, [asName]: item };
+							cloned._thisObj = node._thisObj;
+							node.parentNode.insertBefore(cloned, node);
+							existingNodes.push(cloned);
+						});
+					}
+					newKeyedNodes.set(keyVal, existingNodes);
+					currentRenderedNodes.push(existingNodes);
+				});
 
-                node._keyedNodes.forEach(nodes => nodes.forEach(child => { _clearRenderedNodes(child); child.remove(); }));
-                node._keyedNodes = newKeyedNodes;
-                node._renderedNodes = currentRenderedNodes;
-            } else {
-                _clearRenderedNodes(node);
-                node._renderedNodes = [];
-            }
-        } else if (attr === 'bind') {
-            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(node.tagName) && !node.hasAttribute('autocomplete')) node.setAttribute('autocomplete', 'off');
-            if (node.type === 'checkbox') {
-                if (node.value !== 'on' && !result) { _runCode(`${binding.tpl} = []`, { thisNode: node }, node._thisObj || node, node._ref || {}); result = []; }
-                node._checkboxMultiMode = result instanceof Array;
-                const isChecked = result instanceof Array ? result.includes(node.value) : !!result;
-                if (node.checked !== isChecked) node.checked = isChecked;
-            } else if (node.type === 'radio') {
-                if (node.checked !== (node.value === String(result ?? ''))) node.checked = (node.value === String(result ?? ''));
-            } else if ('value' in node && node.type !== 'file') {
-                Promise.resolve().then(() => { if (node.value !== String(result ?? '')) node.value = result; });
-            } else if (node.isContentEditable) {
-                if (node.innerHTML !== String(result ?? '')) node.innerHTML = result;
-            }
-            node.dispatchEvent(new CustomEvent('bind', { bubbles: false, detail: result }));
-        } else {
-            if (['checked', 'disabled', 'readonly'].includes(attr)) result = !!result;
-            if (typeof result === 'boolean') result ? node.setAttribute(attr, '') : node.removeAttribute(attr);
-            else if (result !== undefined) {
-                if (typeof result !== 'string') result = JSON.stringify(result);
-                if (attr === 'text') node.textContent = result ?? '';
-                else if (attr === 'html') node.innerHTML = result ?? '';
-                else if (node.tagName === 'IMG' && attr === 'src' && result.includes('.svg')) node.setAttribute('_src', result ?? '');
-                else if (attr === 'class') {
-                    if (node._staticClasses === undefined) {
-                        node._staticClasses = node.getAttribute('class') || '';
-                    }
-                    const staticClasses = node._staticClasses;
-                    const finalClass = result ? (staticClasses ? `${result} ${staticClasses}` : result) : staticClasses;
-                    node.setAttribute('class', finalClass.trim().replace(/\s+/g, ' '));
-                } else if (attr === 'style') {
-                    if (node._staticStyles === undefined) {
-                        node._staticStyles = node.getAttribute('style') || '';
-                    }
-                    const staticStyles = node._staticStyles;
-                    const finalStyle = result ? (staticStyles ? `${result}; ${staticStyles}` : result) : staticStyles;
-                    node.setAttribute('style', finalStyle.trim().replace(/;;+/g, ';').replace(/^;+\s*|;\s*$/g, ''));
-                } else node.setAttribute(attr, result ?? '');
-            }
-        }
-    }
+				node._keyedNodes.forEach(nodes => nodes.forEach(child => { _clearRenderedNodes(child); child.remove(); }));
+				node._keyedNodes = newKeyedNodes;
+				node._renderedNodes = currentRenderedNodes;
+			} else {
+				_clearRenderedNodes(node);
+				node._renderedNodes = [];
+			}
+		} else if (attr === 'bind') {
+			if (['INPUT', 'SELECT', 'TEXTAREA'].includes(node.tagName) && !node.hasAttribute('autocomplete')) node.setAttribute('autocomplete', 'off');
+			if (node.type === 'checkbox') {
+				if (node.value !== 'on' && !result) { _runCode(`${binding.tpl} = []`, { thisNode: node }, node._thisObj || node, node._ref || {}); result = []; }
+				node._checkboxMultiMode = result instanceof Array;
+				const isChecked = result instanceof Array ? result.includes(node.value) : !!result;
+				if (node.checked !== isChecked) node.checked = isChecked;
+			} else if (node.type === 'radio') {
+				if (node.checked !== (node.value === String(result ?? ''))) node.checked = (node.value === String(result ?? ''));
+			} else if ('value' in node && node.type !== 'file') {
+				Promise.resolve().then(() => { if (node.value !== String(result ?? '')) node.value = result; });
+			} else if (node.isContentEditable) {
+				if (node.innerHTML !== String(result ?? '')) node.innerHTML = result;
+			}
+			node.dispatchEvent(new CustomEvent('bind', { bubbles: false, detail: result }));
+		} else {
+			if (['checked', 'disabled', 'readonly'].includes(attr)) result = !!result;
+			if (typeof result === 'boolean') result ? node.setAttribute(attr, '') : node.removeAttribute(attr);
+			else if (result !== undefined) {
+				if (typeof result !== 'string') result = JSON.stringify(result);
+				if (attr === 'text') node.textContent = result ?? '';
+				else if (attr === 'html') node.innerHTML = result ?? '';
+				else if (node.tagName === 'IMG' && attr === 'src' && result.includes('.svg')) node.setAttribute('_src', result ?? '');
+				else if (attr === 'class') {
+					if (node._staticClasses === undefined) {
+						node._staticClasses = node.getAttribute('class') || '';
+					}
+					const staticClasses = node._staticClasses;
+					const finalClass = result ? (staticClasses ? `${result} ${staticClasses}` : result) : staticClasses;
+					node.setAttribute('class', finalClass.trim().replace(/\s+/g, ' '));
+				} else if (attr === 'style') {
+					if (node._staticStyles === undefined) {
+						node._staticStyles = node.getAttribute('style') || '';
+					}
+					const staticStyles = node._staticStyles;
+					const finalStyle = result ? (staticStyles ? `${result}; ${staticStyles}` : result) : staticStyles;
+					node.setAttribute('style', finalStyle.trim().replace(/;;+/g, ';').replace(/^;+\s*|;\s*$/g, ''));
+				} else node.setAttribute(attr, result ?? '');
+			}
+		}
+	}
 }
 
 export function _initBinding(binding) {
-    if (!binding.node._bindings) binding.node._bindings = [];
-    binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
-    _updateBinding(binding);
+	if (!binding.node._bindings) binding.node._bindings = [];
+	binding.node._bindings.push({ attr: binding.attr, prop: binding.prop, tpl: binding.tpl, exp: binding.exp });
+	_updateBinding(binding);
 }
 
 export function _parseNode(node, scanObj) {
-    if (node._bindings) {
-        node._states = new Set();
-        node._bindings.forEach(b => _updateBinding({ node, ...b }));
-        if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
-        return;
-    }
+	if (node._bindings) {
+		node._states = new Set();
+		node._bindings.forEach(b => _updateBinding({ node, ...b }));
+		if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
+		return;
+	}
 
-    if (Component.exists(node.tagName) && !node._componentInitialized) {
-        Array.from(node.attributes).forEach(attr => {
-            if (attr.name.startsWith('$.')) {
-                const realAttrName = attr.name.slice(2);
-                let tpl = _translate(attr.value);
-                if (scanObj.thisObj && tpl.includes('this.')) tpl = tpl.replace(/\bthis\./g, 'this.parent.');
-                const result = _returnCode(tpl, { thisNode: node }, { parent: scanObj.thisObj || node }, node._ref || {});
-                let o = node;
-                const prop = realAttrName.split('.');
-                for (let i = 0; i < prop.length - 1; i++) { if (prop[i]) o = (o[prop[i]] ??= {}); }
-                o[prop[prop.length - 1]] = result;
-                node.removeAttribute(attr.name);
-            }
-        });
-        _makeComponent(node.tagName, node, scanObj);
-        $$(node, '[slot-id]').forEach(p => p.removeAttribute('slot-id'));
-        node._componentInitialized = true;
-        if (!node._thisObj) node._thisObj = node;
-    }
+	if (Component.exists(node.tagName) && !node._componentInitialized) {
+		Array.from(node.attributes).forEach(attr => {
+			if (attr.name.startsWith('$.')) {
+				const realAttrName = attr.name.slice(2);
+				let tpl = _translate(attr.value);
+				if (scanObj.thisObj && tpl.includes('this.')) tpl = tpl.replace(/\bthis\./g, 'this.parent.');
+				const result = _returnCode(tpl, { thisNode: node }, { parent: scanObj.thisObj || node }, node._ref || {});
+				let o = node;
+				const prop = realAttrName.split('.');
+				for (let i = 0; i < prop.length - 1; i++) { if (prop[i]) o = (o[prop[i]] ??= {}); }
+				o[prop[prop.length - 1]] = result;
+				// node.removeAttribute(attr.name);
+			}
+		});
+		_makeComponent(node.tagName, node, scanObj);
+		$$(node, '[slot-id]').forEach(p => p.removeAttribute('slot-id'));
+		node._componentInitialized = true;
+		if (!node._thisObj) node._thisObj = node;
+	}
 
-    if (node.tagName === 'TEMPLATE') {
-        node._children = [...node.content.childNodes];
-        if (!node._renderedNodes) node._renderedNodes = [];
-    }
+	if (node.tagName === 'TEMPLATE') {
+		node._children = [...node.content.childNodes];
+		if (!node._renderedNodes) node._renderedNodes = [];
+	}
 
-    let attrs = [];
-    if (node.tagName === 'TEMPLATE') {
-        ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
-    } else {
-        attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(a.name) || a.name.includes('.'));
-    }
+	let attrs = [];
+	if (node.tagName === 'TEMPLATE') {
+		['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
+	} else {
+		attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(a.name) || a.name.includes('.'));
+	}
 
 
-    if (node._thisObj && scanObj.thisObj && node._thisObj !== scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
-    if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
-    if (!node._ref) node._ref = scanObj.extendVars || {};
-    node._states = new Set();
+	if (node._thisObj && scanObj.thisObj && node._thisObj !== scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
+	if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
+	if (!node._ref) node._ref = scanObj.extendVars || {};
+	node._states = new Set();
 
-    attrs.forEach(attr => {
-        let exp = 0;
-        if (attr.name.startsWith('$$') || attr.name.startsWith('st-st-')) exp = 2;
-        else if (attr.name.startsWith('$') || attr.name.startsWith('st-')) exp = 1;
+	attrs.forEach(attr => {
+		let exp = 0;
+		if (attr.name.startsWith('$$') || attr.name.startsWith('st-st-')) exp = 2;
+		else if (attr.name.startsWith('$') || attr.name.startsWith('st-')) exp = 1;
 
-        const realAttrName = exp === 2 ? (attr.name.startsWith('$$') ? attr.name.slice(2) : attr.name.slice(6)) : (exp === 1 ? (attr.name.startsWith('$') ? attr.name.slice(1) : attr.name.slice(3)) : attr.name);
-        let tpl = attr.value;
-        node.removeAttribute(attr.name);
-        if (realAttrName.startsWith('.')) _initBinding({ node, prop: realAttrName.split('.'), tpl, exp });
-        else if (realAttrName.startsWith('on')) {
-            const eventName = realAttrName.slice(2);
-            if (eventName === 'update') node._hasOnUpdate = true;
-            if (eventName === 'load' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnLoad = true;
-            if (eventName === 'unload' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnUnload = true;
-            node.addEventListener(eventName, (e) => _runCode(tpl, { event: e, thisNode: node, ...(e.detail || {}) }, scanObj.thisObj || node, node._ref || {}));
-        } else {
-            if (realAttrName === 'bind') {
-                const isTextInput = (['INPUT', 'TEXTAREA'].includes(node.tagName) && ['textarea', 'text', 'password', 'email', 'number', 'search', 'url', 'tel'].includes(node.type || 'text')) || node.isContentEditable;
-                node.addEventListener(isTextInput ? 'input' : 'change', (e) => {
-                    let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : e.target.files || e.target.value || e.detail);
-                    _setNoWriteBack(node); setDisableRunCodeError(true);
-                    if (node.type === 'checkbox' && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
-                    else _runCode(`${tpl} = val`, { val: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
-                    setDisableRunCodeError(false); _setNoWriteBack(null);
-                });
-            } else if (realAttrName === 'text' && !tpl) { tpl = node.textContent; node.textContent = ''; }
-            if (tpl) { tpl = _translate(tpl); _initBinding({ node, attr: realAttrName, tpl, exp }); }
-        }
-    });
+		const realAttrName = exp === 2 ? (attr.name.startsWith('$$') ? attr.name.slice(2) : attr.name.slice(6)) : (exp === 1 ? (attr.name.startsWith('$') ? attr.name.slice(1) : attr.name.slice(3)) : attr.name);
+		let tpl = attr.value;
+		node.removeAttribute(attr.name);
+		if (realAttrName.startsWith('.')) _initBinding({ node, prop: realAttrName.split('.'), tpl, exp });
+		else if (realAttrName.startsWith('on')) {
+			const eventName = realAttrName.slice(2);
+			if (eventName === 'update') node._hasOnUpdate = true;
+			if (eventName === 'load' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnLoad = true;
+			if (eventName === 'unload' && !['BODY', 'IMG', 'IFRAME'].includes(node.tagName)) node._hasOnUnload = true;
+			node.addEventListener(eventName, (e) => _runCode(tpl, { event: e, thisNode: node, ...(e.detail || {}) }, scanObj.thisObj || node, node._ref || {}));
+		} else {
+			if (realAttrName === 'bind') {
+				const isTextInput = (['INPUT', 'TEXTAREA'].includes(node.tagName) && ['textarea', 'text', 'password', 'email', 'number', 'search', 'url', 'tel'].includes(node.type || 'text')) || node.isContentEditable;
+				node.addEventListener(isTextInput ? 'input' : 'change', (e) => {
+					let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : e.target.files || e.target.value || e.detail);
+					_setNoWriteBack(node); setDisableRunCodeError(true);
+					if (node.type === 'checkbox' && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
+					else _runCode(`${tpl} = val`, { val: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
+					setDisableRunCodeError(false); _setNoWriteBack(null);
+				});
+			} else if (realAttrName === 'text' && !tpl) { tpl = node.textContent; node.textContent = ''; }
+			if (tpl) { tpl = _translate(tpl); _initBinding({ node, attr: realAttrName, tpl, exp }); }
+		}
+	});
 
-    if (node._hasOnLoad || node._componentInitialized) Promise.resolve().then(() => node.dispatchEvent(new Event('load', { bubbles: false })));
-    if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
-    if (node._thisObj) scanObj.thisObj = node._thisObj;
+	if (node._hasOnLoad || node._componentInitialized) Promise.resolve().then(() => node.dispatchEvent(new Event('load', { bubbles: false })));
+	if (node._hasOnUpdate) node.dispatchEvent(new Event('update', { bubbles: false }));
+	if (node._thisObj) scanObj.thisObj = node._thisObj;
 }
 
 export const _scanTree = (node, scanObj = {}) => {
-    if (node.nodeType === 3) {
-        if (node._stTranslated) return;
-        const translated = _translate(node.textContent);
-        if (translated !== node.textContent) node.textContent = translated;
-        node._stTranslated = true;
-        return;
-    }
-    if (node.nodeType !== 1) return;
+	if (node.nodeType === 3) {
+		if (node._stTranslated) return;
+		const translated = _translate(node.textContent);
+		if (translated !== node.textContent) node.textContent = translated;
+		node._stTranslated = true;
+		return;
+	}
+	if (node.nodeType !== 1) return;
 
-    if (!node._stTranslated) {
-        Array.from(node.attributes).forEach(attr => {
-            if (!attr.name.startsWith('$') && !attr.name.startsWith('st-') && !attr.name.startsWith('.')) {
-                const translated = _translate(attr.value);
-                if (translated !== attr.value) attr.value = translated;
-            }
-        });
-        node._stTranslated = true;
-    }
+	if (!node._stTranslated) {
+		Array.from(node.attributes).forEach(attr => {
+			if (!attr.name.startsWith('$') && !attr.name.startsWith('st-') && !attr.name.startsWith('.')) {
+				const translated = _translate(attr.value);
+				if (translated !== attr.value) attr.value = translated;
+			}
+		});
+		node._stTranslated = true;
+	}
 
-    if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each') || node.hasAttribute('$$if') || node.hasAttribute('$$each') || node.hasAttribute('st-st-if') || node.hasAttribute('st-st-each'))) {
-        const template = document.createElement('TEMPLATE');
-        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each')) && ['as', 'index'].includes(attr.name)));
-        attrs.forEach(attr => {
-            template.setAttribute(attr.name, attr.value);
-            node.removeAttribute(attr.name);
-        });
-        node.parentNode.insertBefore(template, node);
-        template.content.appendChild(node);
-        template._ref = node._ref;
-        _scanTree(template, scanObj);
-        return;
-    }
+	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each') || node.hasAttribute('$$if') || node.hasAttribute('$$each') || node.hasAttribute('st-st-if') || node.hasAttribute('st-st-each'))) {
+		const template = document.createElement('TEMPLATE');
+		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name) || ((node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each')) && ['as', 'index'].includes(attr.name)));
+		attrs.forEach(attr => {
+			template.setAttribute(attr.name, attr.value);
+			node.removeAttribute(attr.name);
+		});
+		node.parentNode.insertBefore(template, node);
+		template.content.appendChild(node);
+		template._ref = node._ref;
+		_scanTree(template, scanObj);
+		return;
+	}
 
-    if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if') || node.hasAttribute('$$if') || node.hasAttribute('st-st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each'))) {
-        const template = document.createElement('TEMPLATE');
-        const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name));
-        const attr = attrs[attrs.length - 1];
-        template.setAttribute(attr.name, attr.value);
-        node.removeAttribute(attr.name);
-        if (['$each', 'st-each', '$$each', 'st-st-each'].includes(attr.name)) {
-            Array.from(node.attributes).filter(attr => ['as', 'index'].includes(attr.name)).forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
-        }
-        Array.from(node.content.childNodes).forEach(child => template.content.appendChild(child));
-        node.content.appendChild(template);
-        template._ref = node._ref;
-    }
+	if (node.tagName === 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('st-if') || node.hasAttribute('$$if') || node.hasAttribute('st-st-if')) && (node.hasAttribute('$each') || node.hasAttribute('st-each') || node.hasAttribute('$$each') || node.hasAttribute('st-st-each'))) {
+		const template = document.createElement('TEMPLATE');
+		const attrs = Array.from(node.attributes).filter(attr => ['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(attr.name));
+		const attr = attrs[attrs.length - 1];
+		template.setAttribute(attr.name, attr.value);
+		node.removeAttribute(attr.name);
+		if (['$each', 'st-each', '$$each', 'st-st-each'].includes(attr.name)) {
+			Array.from(node.attributes).filter(attr => ['as', 'index'].includes(attr.name)).forEach(attr => { template.setAttribute(attr.name, attr.value); node.removeAttribute(attr.name); });
+		}
+		Array.from(node.content.childNodes).forEach(child => template.content.appendChild(child));
+		node.content.appendChild(template);
+		template._ref = node._ref;
+	}
 
-    if (node.tagName === 'IMG' && (node.hasAttribute('src') || node.hasAttribute('_src') || node.hasAttribute('$src'))) {
-        const imgNode = node;
-        Promise.resolve().then(() => {
-            const url = imgNode.getAttribute('_src') || imgNode.getAttribute('src');
-            if (url) fetch(url, { cache: 'force-cache' }).then(r => r.text()).then(svgText => {
-                const realSvg = new DOMParser().parseFromString(svgText, "image/svg+xml").querySelector('svg');
-                if (realSvg) {
-                    Array.from(imgNode.attributes).forEach(attr => realSvg.setAttribute(attr.name, attr.value));
-                    imgNode.replaceWith(realSvg);
-                }
-            });
-        });
-    }
+	if (node.tagName === 'IMG' && (node.hasAttribute('src') || node.hasAttribute('_src') || node.hasAttribute('$src'))) {
+		const imgNode = node;
+		Promise.resolve().then(() => {
+			const url = imgNode.getAttribute('_src') || imgNode.getAttribute('src');
+			if (url) fetch(url, { cache: 'force-cache' }).then(r => r.text()).then(svgText => {
+				const realSvg = new DOMParser().parseFromString(svgText, "image/svg+xml").querySelector('svg');
+				if (realSvg) {
+					Array.from(imgNode.attributes).forEach(attr => realSvg.setAttribute(attr.name, attr.value));
+					imgNode.replaceWith(realSvg);
+				}
+			});
+		});
+	}
 
-    if (node._thisObj !== undefined) scanObj.thisObj = node._thisObj || null;
-    else {
-        let curr = node;
-        while (curr && curr._thisObj === undefined) curr = curr.parentNode;
-        scanObj.thisObj = curr ? curr._thisObj : null;
-    }
+	if (node._thisObj !== undefined) scanObj.thisObj = node._thisObj || null;
+	else {
+		let curr = node;
+		while (curr && curr._thisObj === undefined) curr = curr.parentNode;
+		scanObj.thisObj = curr ? curr._thisObj : null;
+	}
 
-    if (node._ref === undefined) {
-        let curr = node;
-        while (curr && curr._ref === undefined) curr = curr.parentNode;
-        node._ref = curr ? { ...curr._ref } : {};
-    }
-    if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
+	if (node._ref === undefined) {
+		let curr = node;
+		while (curr && curr._ref === undefined) curr = curr.parentNode;
+		node._ref = curr ? { ...curr._ref } : {};
+	}
+	if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
 
-    _parseNode(node, { ...scanObj });
+	_parseNode(node, { ...scanObj });
 
-    const nodes = [...(node.childNodes || [])];
-    nodes.forEach(child => _scanTree(child, { thisObj: scanObj.thisObj, extendVars: { ...node._ref } }));
+	const nodes = [...(node.childNodes || [])];
+	nodes.forEach(child => _scanTree(child, { thisObj: scanObj.thisObj, extendVars: { ...node._ref } }));
 };
 
 export const _unbindTree = (node) => {
-    if (node.nodeType !== 1) return;
-    if (node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
-    if (node._states) node._states.forEach(mappings => {
-        for (const [key, bindingSet] of mappings) {
-            for (const binding of bindingSet) { if (binding.node === node) bindingSet.delete(binding); }
-        }
-    });
-    node.childNodes && node.childNodes.forEach(child => _unbindTree(child));
+	if (node.nodeType !== 1) return;
+	if (node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
+	if (node._states) node._states.forEach(mappings => {
+		for (const [key, bindingSet] of mappings) {
+			for (const binding of bindingSet) { if (binding.node === node) bindingSet.delete(binding); }
+		}
+	});
+	node.childNodes && node.childNodes.forEach(child => _unbindTree(child));
 };
 
 // 全局挂载

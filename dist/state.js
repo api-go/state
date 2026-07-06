@@ -501,7 +501,6 @@
             if (prop[i]) o = o[_a2 = prop[i]] ?? (o[_a2] = {});
           }
           o[prop[prop.length - 1]] = result;
-          node.removeAttribute(attr.name);
         }
       });
       _makeComponent(node.tagName, node, scanObj);
