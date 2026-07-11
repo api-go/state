@@ -70,9 +70,21 @@ export function _mergeNode(from, to, scanObj, exists = {}) {
 	if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
 }
 
+// Slots may be declared inside a rendering template (for example `$each`).
+// `querySelectorAll` does not cross a <template>'s content boundary, so walk
+// those fragments explicitly while leaving ordinary DOM traversal unchanged.
+const _findSlotPlaceholders = root => {
+	const placeholders = [...root.querySelectorAll('[slot-id]')]
+	root.querySelectorAll('template').forEach(template => {
+		placeholders.push(..._findSlotPlaceholders(template.content))
+	})
+	return placeholders
+}
+
 export function _makeComponent(name, node, scanObj, exists = {}) {
 	if (exists[name]) return;
 	exists[name] = true;
+	const parentThis = scanObj.thisObj;
 	if (scanObj.thisObj) {
 		Array.from(node.attributes).forEach(attr => {
 			if ((attr.name.startsWith('$') || attr.name.startsWith('st-')) && attr.value.includes('this.')) {
@@ -96,7 +108,7 @@ export function _makeComponent(name, node, scanObj, exists = {}) {
 		if (tplnode.childNodes.length) {
 			const rootNode = tplnode.children[0];
 			if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
-			$$(node, '[slot-id]').forEach(placeholder => {
+			_findSlotPlaceholders(node).forEach(placeholder => {
 				const slotName = placeholder.getAttribute('slot-id');
 				if (slots[slotName]) {
 					placeholder.removeAttribute('slot-id');
@@ -107,6 +119,10 @@ export function _makeComponent(name, node, scanObj, exists = {}) {
 		}
 	}
 	if (componentFunc) componentFunc(node);
+	// A component always owns `this`; the creating component is available as
+	// `this.parent`. Dynamic nodes may have inherited their creator's context.
+	node._thisObj = node;
+	if (parentThis && parentThis !== node) node._thisObj.parent = parentThis;
 }
 
 // --- DOM Engine Logic ---
@@ -368,7 +384,7 @@ export function _parseNode(node, scanObj) {
 			if (realAttrName === 'bind') {
 				const isTextInput = (['INPUT', 'TEXTAREA'].includes(node.tagName) && ['textarea', 'text', 'password', 'email', 'number', 'search', 'url', 'tel'].includes(node.type || 'text')) || node.isContentEditable;
 				node.addEventListener(isTextInput ? 'input' : 'change', (e) => {
-					let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : e.target.files || e.target.value || e.detail);
+					let newVal = node.isContentEditable ? e.target.innerHTML : (node.type === 'checkbox' ? e.target.checked : (node.type === 'file' ? e.target.files : (e.target.value ?? e.detail)));
 					_setNoWriteBack(node); setDisableRunCodeError(true);
 					if (node.type === 'checkbox' && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
 					else _runCode(`${tpl} = val`, { val: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
@@ -463,7 +479,9 @@ export const _scanTree = (node, scanObj = {}) => {
 	_parseNode(node, { ...scanObj });
 
 	const nodes = [...(node.childNodes || [])];
-	nodes.forEach(child => _scanTree(child, { thisObj: scanObj.thisObj, extendVars: { ...node._ref } }));
+	// A component's template belongs to that component, not to the context that created it.
+	// This keeps `this` in nested component templates bound to the nested component.
+	nodes.forEach(child => _scanTree(child, { thisObj: node._thisObj ?? scanObj.thisObj, extendVars: { ...node._ref } }));
 };
 
 export const _unbindTree = (node) => {
