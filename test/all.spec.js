@@ -1,10 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../.profile/playwright/fixture.js';
 import fs from 'fs';
 import path from 'path';
 
 test('modular unit tests and benchmark', async ({ page }) => {
     page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
-    await page.goto('http://localhost:8081/test/index.html');
+    await page.goto('/test/index.html');
     
     await page.waitForFunction(() => window.testStatus !== undefined, { timeout: 10000 });
     const status = await page.evaluate(() => window.testStatus);

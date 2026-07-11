@@ -247,9 +247,17 @@
     Array.from(sourceNodes).forEach((child) => target.appendChild(child));
     if (from.tagName && Component.exists(from.tagName)) _makeComponent(from.tagName, to, scanObj, exists);
   }
+  const _findSlotPlaceholders = (root) => {
+    const placeholders = [...root.querySelectorAll("[slot-id]")];
+    root.querySelectorAll("template").forEach((template) => {
+      placeholders.push(..._findSlotPlaceholders(template.content));
+    });
+    return placeholders;
+  };
   function _makeComponent(name, node, scanObj, exists = {}) {
     if (exists[name]) return;
     exists[name] = true;
+    const parentThis = scanObj.thisObj;
     if (scanObj.thisObj) {
       Array.from(node.attributes).forEach((attr) => {
         if ((attr.name.startsWith("$") || attr.name.startsWith("st-")) && attr.value.includes("this.")) {
@@ -273,7 +281,7 @@
       if (tplnode.childNodes.length) {
         const rootNode = tplnode.children[0];
         if (rootNode) _mergeNode(rootNode, node, scanObj, exists);
-        $$(node, "[slot-id]").forEach((placeholder) => {
+        _findSlotPlaceholders(node).forEach((placeholder) => {
           const slotName = placeholder.getAttribute("slot-id");
           if (slots[slotName]) {
             placeholder.removeAttribute("slot-id");
@@ -284,6 +292,8 @@
       }
     }
     if (componentFunc) componentFunc(node);
+    node._thisObj = node;
+    if (parentThis && parentThis !== node) node._thisObj.parent = parentThis;
   }
   let _translator = (text, args) => {
     if (!text || typeof text !== "string") return text;
@@ -540,7 +550,7 @@
         if (realAttrName === "bind") {
           const isTextInput = ["INPUT", "TEXTAREA"].includes(node.tagName) && ["textarea", "text", "password", "email", "number", "search", "url", "tel"].includes(node.type || "text") || node.isContentEditable;
           node.addEventListener(isTextInput ? "input" : "change", (e) => {
-            let newVal = node.isContentEditable ? e.target.innerHTML : node.type === "checkbox" ? e.target.checked : e.target.files || e.target.value || e.detail;
+            let newVal = node.isContentEditable ? e.target.innerHTML : node.type === "checkbox" ? e.target.checked : node.type === "file" ? e.target.files : e.target.value ?? e.detail;
             _setNoWriteBack(node);
             setDisableRunCodeError(true);
             if (node.type === "checkbox" && node._checkboxMultiMode) _runCode(`!!checked ? (!${tpl}.includes(val) && ${tpl}.push(val)) : (index = ${tpl}.indexOf(val), index > -1 && ${tpl}.splice(index, 1))`, { val: node.value, checked: newVal, thisNode: node }, scanObj.thisObj || node, node._ref || {});
@@ -636,7 +646,7 @@
     if (scanObj.extendVars) Object.assign(node._ref, scanObj.extendVars);
     _parseNode(node, { ...scanObj });
     const nodes = [...node.childNodes || []];
-    nodes.forEach((child) => _scanTree(child, { thisObj: scanObj.thisObj, extendVars: { ...node._ref } }));
+    nodes.forEach((child) => _scanTree(child, { thisObj: node._thisObj ?? scanObj.thisObj, extendVars: { ...node._ref } }));
   };
   const _unbindTree = (node) => {
     if (node.nodeType !== 1) return;

@@ -58,6 +58,10 @@ window.testDom = async function() {
     input.dispatchEvent(new Event('input'));
     if (state.val !== 'changed') throw new Error('$bind writeback failed');
 
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    if (state.val !== '') throw new Error('$bind must preserve an empty text value');
+
     // 6. Double evaluation ($$ prefix)
     console.log('Testing double evaluation ($$)...');
     document.body.innerHTML = `
