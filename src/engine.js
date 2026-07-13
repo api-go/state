@@ -280,7 +280,10 @@ export function _updateBinding(binding) {
 			} else if (node.type === 'radio') {
 				if (node.checked !== (node.value === String(result ?? ''))) node.checked = (node.value === String(result ?? ''));
 			} else if ('value' in node && node.type !== 'file') {
-				Promise.resolve().then(() => { if (node.value !== String(result ?? '')) node.value = result; });
+				// A select may receive its bound value before template-rendered
+				// options exist. Run after the current render turn so adding options
+				// cannot replace the model value with the browser's default option.
+				setTimeout(() => { if (node.value !== String(result ?? '')) node.value = result; });
 			} else if (node.isContentEditable) {
 				if (node.innerHTML !== String(result ?? '')) node.innerHTML = result;
 			}
