@@ -62,7 +62,16 @@ window.testDom = async function() {
     input.dispatchEvent(new Event('input'));
     if (state.val !== '') throw new Error('$bind must preserve an empty text value');
 
-    // 6. Double evaluation ($$ prefix)
+    // 6. A select bound before its template-rendered options must retain the
+    // model value instead of writing the browser-selected default back.
+    document.body.innerHTML = '<select id="test-select" $bind="state.selected"><template $each="state.options"><option $text="item" $value="item"></option></template></select>';
+    state.selected = 'second';
+    state.options = ['first', 'second'];
+    __unsafeRefreshState(document.documentElement);
+    await wait();
+    if ($('#test-select').value !== 'second' || state.selected !== 'second') throw new Error('$bind select must retain its value after rendering options');
+
+    // 7. Double evaluation ($$ prefix)
     console.log('Testing double evaluation ($$)...');
     document.body.innerHTML = `
         <div id="double-eval-root">

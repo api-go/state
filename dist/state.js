@@ -451,7 +451,7 @@
         } else if (node.type === "radio") {
           if (node.checked !== (node.value === String(result ?? ""))) node.checked = node.value === String(result ?? "");
         } else if ("value" in node && node.type !== "file") {
-          Promise.resolve().then(() => {
+          setTimeout(() => {
             if (node.value !== String(result ?? "")) node.value = result;
           });
         } else if (node.isContentEditable) {
