@@ -370,12 +370,14 @@
       if (attr === "if") {
         if (result) {
           if (!node._renderedNodes || node._renderedNodes.length === 0) {
-            node._children.forEach((child) => {
-              node.parentNode.insertBefore(child, node);
-              child._ref = { ...node._ref };
-              child._thisObj = node._thisObj;
+            const rendered = node._children.map((child) => {
+              const cloned = child.cloneNode(true);
+              node.parentNode.insertBefore(cloned, node);
+              cloned._ref = { ...node._ref };
+              cloned._thisObj = node._thisObj;
+              return cloned;
             });
-            node._renderedNodes = [node._children];
+            node._renderedNodes = [rendered];
           }
         } else {
           _clearRenderedNodes(node);
@@ -545,7 +547,10 @@
         if (eventName === "update") node._hasOnUpdate = true;
         if (eventName === "load" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnLoad = true;
         if (eventName === "unload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
-        node.addEventListener(eventName, (e) => _runCode(tpl, { event: e, thisNode: node, ...e.detail || {} }, scanObj.thisObj || node, node._ref || {}));
+        node.addEventListener(eventName, (e) => {
+          const detailVars = e.detail && typeof e.detail === "object" && !Array.isArray(e.detail) ? e.detail : {};
+          _runCode(tpl, { event: e, thisNode: node, ...detailVars }, scanObj.thisObj || node, node._ref || {});
+        });
       } else {
         if (realAttrName === "bind") {
           const isTextInput = ["INPUT", "TEXTAREA"].includes(node.tagName) && ["textarea", "text", "password", "email", "number", "search", "url", "tel"].includes(node.type || "text") || node.isContentEditable;
