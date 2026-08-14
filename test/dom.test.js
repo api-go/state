@@ -1,6 +1,6 @@
 // test/dom.test.js
 window.testDom = async function() {
-    const { __unsafeRefreshState, $, $$, NewState } = ApigoState;
+    const { __unsafeRefreshState, $, $$, NewState, Component } = ApigoState;
     console.log('Testing dom.js...');
     
     const wait = () => new Promise(r => setTimeout(r, 10));
@@ -27,6 +27,21 @@ window.testDom = async function() {
     await wait();
     if (!$('#test-if')) throw new Error('$if fail: should be visible');
 
+    // A component in a conditional branch must be initialized again after the
+    // branch is removed and mounted a second time.
+    let conditionalSetupCount = 0;
+    Component.register('IfLifecycleProbe', node => { conditionalSetupCount++; node.probeReady = true });
+    document.body.innerHTML = '<template $if="state.showComponent"><IfLifecycleProbe id="if-lifecycle-probe"></IfLifecycleProbe></template>';
+    state.showComponent = true;
+    __unsafeRefreshState(document.documentElement);
+    await wait();
+    if (!$('#if-lifecycle-probe')?.probeReady || conditionalSetupCount !== 1) throw new Error('$if component initial mount failed');
+    state.showComponent = false;
+    await wait();
+    state.showComponent = true;
+    await wait();
+    if (!$('#if-lifecycle-probe')?.probeReady || conditionalSetupCount !== 2) throw new Error('$if component remount must reinitialize a fresh node');
+
     // 3. $each directive
     document.body.innerHTML = '<template $each="state.items"><div class="test-item" $text="item"></div></template>';
     state.items = ['A', 'B'];
@@ -45,6 +60,13 @@ window.testDom = async function() {
     __unsafeRefreshState(document.documentElement);
     $('#test-click').click();
     if (state.count !== 1) throw new Error('$onclick failed');
+
+    // Primitive CustomEvent details remain available through event.detail and
+    // must not be expanded into invalid numeric function argument names.
+    document.body.innerHTML = '<div id="test-primitive-event" $onchange="state.eventValue=event.detail"></div>';
+    __unsafeRefreshState(document.documentElement);
+    $('#test-primitive-event').dispatchEvent(new CustomEvent('change', { detail: 'source text' }));
+    if (state.eventValue !== 'source text') throw new Error('$on event must accept primitive detail');
 
     // 5. $bind (input)
     document.body.innerHTML = '<input id="test-bind" $bind="state.val">';
