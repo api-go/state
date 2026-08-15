@@ -84,6 +84,14 @@ window.testDom = async function() {
     input.dispatchEvent(new Event('input'));
     if (state.val !== '') throw new Error('$bind must preserve an empty text value');
 
+    // A component/container binding must not consume change events bubbling
+    // from nested form controls.
+    document.body.innerHTML = '<div id="test-parent-bind" $bind="state.parentValue"><input id="test-nested-change"></div>';
+    state.parentValue = 'kept';
+    __unsafeRefreshState(document.documentElement);
+    $('#test-nested-change').dispatchEvent(new Event('change', { bubbles: true }));
+    if (state.parentValue !== 'kept') throw new Error('$bind parent consumed a nested control change event');
+
     // 6. A select bound before its template-rendered options must retain the
     // model value instead of writing the browser-selected default back.
     document.body.innerHTML = '<select id="test-select" $bind="state.selected"><template $each="state.options"><option $text="item" $value="item"></option></template></select>';

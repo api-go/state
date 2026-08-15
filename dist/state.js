@@ -608,6 +608,7 @@
         if (realAttrName === "bind") {
           const isTextInput = ["INPUT", "TEXTAREA"].includes(node.tagName) && ["textarea", "text", "password", "email", "number", "search", "url", "tel"].includes(node.type || "text") || node.isContentEditable;
           node.addEventListener(isTextInput ? "input" : "change", (e) => {
+            if (e.target !== node) return;
             let newVal = node.isContentEditable ? e.target.innerHTML : node.type === "checkbox" ? e.target.checked : node.type === "file" ? e.target.files : e.target.value ?? e.detail;
             _setNoWriteBack(node);
             setDisableRunCodeError(true);
