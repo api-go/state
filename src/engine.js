@@ -5,7 +5,7 @@
 
 import { Util, $, $$ } from './utils.js';
 import { NewState, _setActiveBinding, _setNoWriteBack, _onNotifyUpdate } from './observer.js';
-import { _runCode, _returnCode, setDisableRunCodeError } from './core.js';
+import { Lang, _runCode, _returnCode, setDisableRunCodeError } from './core.js';
 
 // --- Component Logic ---
 const _components = new Map();
@@ -132,6 +132,31 @@ let _translator = (text, args) => {
 };
 export const SetTranslator = (fn) => _translator = fn;
 
+const _translationLoads = new Map();
+const _isPromise = value => value && typeof value.then === 'function';
+const _fillTranslationArgs = (text, args) => {
+	if (!text || typeof text !== 'string') return text;
+	return text.replace(/\{(.+?)\}/g, (match, key) => Object.prototype.hasOwnProperty.call(args, key) ? args[key] : match);
+};
+
+const _getTranslation = (text, args) => {
+	const cached = Lang[text];
+	if (Object.prototype.hasOwnProperty.call(Lang, text)) return _fillTranslationArgs(cached, args);
+	const language = globalThis.Cookie?.language;
+	const loadKey = `${language}\0${text}`;
+	if (_translationLoads.has(loadKey)) return text;
+	let result;
+	try { result = _translator(text, args); }
+	catch (_) { return text; }
+	if (!_isPromise(result)) return typeof result === 'string' ? result : text;
+	const loading = Promise.resolve(result).then(translated => {
+		if (globalThis.Cookie?.language === language && typeof translated === 'string') Lang[text] = translated;
+		return translated;
+	}).catch(() => text).finally(() => _translationLoads.delete(loadKey));
+	_translationLoads.set(loadKey, loading);
+	return text;
+};
+
 const _translate = (text) => {
 	if (!text || typeof text !== 'string' || !text.includes('{#')) return text;
 	return text.replace(/\{#(.+?)#\}/g, (m, content) => {
@@ -141,7 +166,7 @@ const _translate = (text) => {
 			const matches = parts[0].match(/\{(.+?)\}/g);
 			if (matches) matches.forEach((match, i) => args[match.substring(1, match.length - 1)] = parts[i + 1] || '');
 		}
-		return _translator(parts[0], args);
+		return _getTranslation(parts[0], args);
 	});
 };
 
@@ -174,6 +199,7 @@ export function _updateBinding(binding) {
 	if (binding.exp === 2 && typeof result === 'string') {
 		try { result = _returnCode(result, { thisNode: node }, node._thisObj || node, node._ref || null); } catch (e) { }
 	}
+	if (typeof result === 'string' && result.includes('{#')) result = _translate(result);
 	_setActiveBinding(null);
 	binding.lastResult = result;
 
@@ -361,7 +387,10 @@ export function _parseNode(node, scanObj) {
 	if (node.tagName === 'TEMPLATE') {
 		['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].forEach(n => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
 	} else {
-		attrs = Array.from(node.attributes).filter(a => (a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(a.name) || a.name.includes('.'));
+		attrs = Array.from(node.attributes).filter(a =>
+			(a.name.startsWith('$') || a.name.startsWith('st-')) && !['$if', '$each', 'st-if', 'st-each', '$$if', '$$each', 'st-st-if', 'st-st-each'].includes(a.name) ||
+			a.name.includes('.') ||
+			!a.name.startsWith('$') && !a.name.startsWith('st-') && !a.name.startsWith('.') && !a.name.startsWith('on') && a.name !== 'bind' && a.value.includes('{#'));
 	}
 
 
@@ -399,7 +428,7 @@ export function _parseNode(node, scanObj) {
 					setDisableRunCodeError(false); _setNoWriteBack(null);
 				});
 			} else if (realAttrName === 'text' && !tpl) { tpl = node.textContent; node.textContent = ''; }
-			if (tpl) { tpl = _translate(tpl); _initBinding({ node, attr: realAttrName, tpl, exp }); }
+			if (tpl) _initBinding({ node, attr: realAttrName, tpl, exp });
 		}
 	});
 
@@ -410,23 +439,19 @@ export function _parseNode(node, scanObj) {
 
 export const _scanTree = (node, scanObj = {}) => {
 	if (node.nodeType === 3) {
+		if (node._bindings) {
+			node._states = new Set();
+			node._bindings.forEach(binding => _updateBinding({ node, ...binding }));
+			return;
+		}
 		if (node._stTranslated) return;
-		const translated = _translate(node.textContent);
-		if (translated !== node.textContent) node.textContent = translated;
+		if (node.textContent.includes('{#')) _initBinding({ node, attr: 'text', tpl: node.textContent, exp: 0 });
 		node._stTranslated = true;
 		return;
 	}
 	if (node.nodeType !== 1) return;
 
-	if (!node._stTranslated) {
-		Array.from(node.attributes).forEach(attr => {
-			if (!attr.name.startsWith('$') && !attr.name.startsWith('st-') && !attr.name.startsWith('.')) {
-				const translated = _translate(attr.value);
-				if (translated !== attr.value) attr.value = translated;
-			}
-		});
-		node._stTranslated = true;
-	}
+	if (!node._stTranslated) node._stTranslated = true;
 
 	if (node.tagName !== 'TEMPLATE' && (node.hasAttribute('$if') || node.hasAttribute('$each') || node.hasAttribute('st-if') || node.hasAttribute('st-each') || node.hasAttribute('$$if') || node.hasAttribute('$$each') || node.hasAttribute('st-st-if') || node.hasAttribute('st-st-each'))) {
 		const template = document.createElement('TEMPLATE');
@@ -493,8 +518,8 @@ export const _scanTree = (node, scanObj = {}) => {
 };
 
 export const _unbindTree = (node) => {
-	if (node.nodeType !== 1) return;
-	if (node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
+	if (node.nodeType !== 1 && !node._states) return;
+	if (node.nodeType === 1 && node._hasOnUnload) node.dispatchEvent(new Event('unload', { bubbles: false }));
 	if (node._states) node._states.forEach(mappings => {
 		for (const [key, bindingSet] of mappings) {
 			for (const binding of bindingSet) { if (binding.node === node) bindingSet.delete(binding); }

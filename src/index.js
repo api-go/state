@@ -38,5 +38,5 @@ if (typeof document !== 'undefined') {
 export { NewState, _setActiveBinding as setActiveBinding, _onNotifyUpdate as onNotifyUpdate } from './observer.js';
 export { Component, SetTranslator } from './engine.js';
 export { $, $$, Util } from './utils.js';
-export { Hash, LocalStorage, State, _runCode, _returnCode } from './core.js';
+export { Cookie, Hash, Lang, LocalStorage, State, _runCode, _returnCode } from './core.js';
 export const __unsafeRefreshState = _scanTree;
