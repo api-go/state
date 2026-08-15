@@ -31,6 +31,29 @@ export const LocalStorage = NewState({}, k => Util.safeJson(localStorage.getItem
     v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, newStr)
 })
 
+const readCookies = () => Object.fromEntries(document.cookie.split(';').map(item => {
+    const index = item.indexOf('=')
+    if (index < 0) return [item.trim(), '']
+    return [item.slice(0, index).trim(), item.slice(index + 1)]
+}).filter(([key]) => key))
+
+export const Cookie = NewState({}, k => {
+    const value = readCookies()[k]
+    if (value === undefined) return undefined
+    try { return Util.safeJson(decodeURIComponent(value)) }
+    catch (_) { return undefined }
+}, (k, v) => {
+    const value = v === undefined ? '' : encodeURIComponent(JSON.stringify(v))
+    const maxAge = v === undefined ? 0 : 3153600000
+    document.cookie = `${k}=${value}; Path=/; Max-Age=${maxAge}; SameSite=Lax`
+})
+
+export const Lang = NewState({})
+
+if (Cookie.language === undefined && typeof navigator !== 'undefined') {
+    Cookie.language = navigator.languages?.[0] || navigator.language || 'en-US'
+}
+
 export const State = NewState({
     exitBlocks: 0
 });
@@ -38,6 +61,8 @@ export const State = NewState({
 // 全局挂载
 globalThis.Hash = Hash;
 globalThis.LocalStorage = LocalStorage;
+globalThis.Cookie = Cookie;
+globalThis.Lang = Lang;
 globalThis.State = State;
 
 let _disableRunCodeError = false;

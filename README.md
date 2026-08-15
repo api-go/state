@@ -14,6 +14,13 @@
     *   `obj.__watch(key, cb)`: 建立 key -> callback 的直接依赖。
     *   `obj.__unwatch(key, cb)`: 解除依赖。
 
+### 内置状态
+
+- `Hash`: 与 URL Hash 同步的响应式状态。
+- `LocalStorage`: 与 `localStorage` 同步的响应式状态。
+- `Cookie`: 与同路径 Cookie 同步的响应式状态，默认写入 `Path=/` 并保留 100 年。`Cookie.language` 默认使用浏览器首选语言。
+- `Lang`: 翻译结果的响应式缓存，以原文为键。修改 `Lang[text]` 会自动更新依赖该翻译的 binding。
+
 ---
 
 ## 2. 指令映射全集 (AI-Ready)
@@ -69,7 +76,12 @@ AI 必须根据不同的元素类型执行以下逻辑：
 ## 5. 国际化 (I18n) 逻辑
 
 - **语法结构**：`{# Key{param} || paramValue #}`。
-- **处理链路**：正则匹配 `{# ... #}` -> 提取 Key -> 注入 `||` 后的参数值 -> 调用全局 `_translator` 函数。
+- **处理链路**：正则匹配 `{# ... #}` -> 提取 Key -> 注入 `||` 后的参数值 -> 读取 `Lang[Key]` -> 缓存缺失时调用 translator。
+- **注册翻译器**：`SetTranslator((text, args) => string | Promise<string>)`。
+- **同步结果**：立即显示 translator 返回的字符串。
+- **异步结果**：Promise 完成前显示原文；完成后写入 `Lang[text]`，由现有 State 依赖机制自动重新执行 binding。
+- **请求去重**：异步翻译按 `Cookie.language + 原文` 去重；语言切换后，旧语言请求不会写入当前 `Lang`。
+- **表达式结果**：`$text` 等指令先按原有规则求值，最终结果为包含 `{#` 的字符串时才翻译。
 
 ---
 

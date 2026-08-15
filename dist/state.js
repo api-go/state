@@ -2,7 +2,7 @@
   typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(global.ApigoState = global.ApigoState || {}));
 })(this, function(exports2) {
   "use strict";
-  var _a, _b;
+  var _a, _b, _c;
   const Util = {
     clone: (obj) => JSON.parse(JSON.stringify(obj)),
     base64: (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))),
@@ -158,11 +158,35 @@
     if (oldStr === newStr || oldStr === null && newStr === void 0) return;
     v === void 0 ? localStorage.removeItem(k) : localStorage.setItem(k, newStr);
   });
+  const readCookies = () => Object.fromEntries(document.cookie.split(";").map((item) => {
+    const index = item.indexOf("=");
+    if (index < 0) return [item.trim(), ""];
+    return [item.slice(0, index).trim(), item.slice(index + 1)];
+  }).filter(([key]) => key));
+  const Cookie = NewState({}, (k) => {
+    const value = readCookies()[k];
+    if (value === void 0) return void 0;
+    try {
+      return Util.safeJson(decodeURIComponent(value));
+    } catch (_) {
+      return void 0;
+    }
+  }, (k, v) => {
+    const value = v === void 0 ? "" : encodeURIComponent(JSON.stringify(v));
+    const maxAge = v === void 0 ? 0 : 31536e5;
+    document.cookie = `${k}=${value}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+  });
+  const Lang = NewState({});
+  if (Cookie.language === void 0 && typeof navigator !== "undefined") {
+    Cookie.language = ((_c = navigator.languages) == null ? void 0 : _c[0]) || navigator.language || "en-US";
+  }
   const State = NewState({
     exitBlocks: 0
   });
   globalThis.Hash = Hash;
   globalThis.LocalStorage = LocalStorage;
+  globalThis.Cookie = Cookie;
+  globalThis.Lang = Lang;
   globalThis.State = State;
   let _disableRunCodeError = false;
   const setDisableRunCodeError = (value) => {
@@ -300,6 +324,34 @@
     return text.replace(/\{(.+?)\}/g, (match, key) => args.hasOwnProperty(key) ? args[key] : match);
   };
   const SetTranslator = (fn) => _translator = fn;
+  const _translationLoads = /* @__PURE__ */ new Map();
+  const _isPromise = (value) => value && typeof value.then === "function";
+  const _fillTranslationArgs = (text, args) => {
+    if (!text || typeof text !== "string") return text;
+    return text.replace(/\{(.+?)\}/g, (match, key) => Object.prototype.hasOwnProperty.call(args, key) ? args[key] : match);
+  };
+  const _getTranslation = (text, args) => {
+    var _a2;
+    const cached = Lang[text];
+    if (Object.prototype.hasOwnProperty.call(Lang, text)) return _fillTranslationArgs(cached, args);
+    const language = (_a2 = globalThis.Cookie) == null ? void 0 : _a2.language;
+    const loadKey = `${language}\0${text}`;
+    if (_translationLoads.has(loadKey)) return text;
+    let result;
+    try {
+      result = _translator(text, args);
+    } catch (_) {
+      return text;
+    }
+    if (!_isPromise(result)) return typeof result === "string" ? result : text;
+    const loading = Promise.resolve(result).then((translated) => {
+      var _a3;
+      if (((_a3 = globalThis.Cookie) == null ? void 0 : _a3.language) === language && typeof translated === "string") Lang[text] = translated;
+      return translated;
+    }).catch(() => text).finally(() => _translationLoads.delete(loadKey));
+    _translationLoads.set(loadKey, loading);
+    return text;
+  };
   const _translate = (text) => {
     if (!text || typeof text !== "string" || !text.includes("{#")) return text;
     return text.replace(/\{#(.+?)#\}/g, (m, content) => {
@@ -309,7 +361,7 @@
         const matches = parts[0].match(/\{(.+?)\}/g);
         if (matches) matches.forEach((match, i) => args[match.substring(1, match.length - 1)] = parts[i + 1] || "");
       }
-      return _translator(parts[0], args);
+      return _getTranslation(parts[0], args);
     });
   };
   if (typeof document !== "undefined") {
@@ -341,6 +393,7 @@
       } catch (e) {
       }
     }
+    if (typeof result === "string" && result.includes("{#")) result = _translate(result);
     _setActiveBinding(null);
     binding.lastResult = result;
     if (binding.prop) {
@@ -528,7 +581,7 @@
     if (node.tagName === "TEMPLATE") {
       ["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"].forEach((n) => node.hasAttribute(n) && attrs.push(node.getAttributeNode(n)));
     } else {
-      attrs = Array.from(node.attributes).filter((a) => (a.name.startsWith("$") || a.name.startsWith("st-")) && !["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"].includes(a.name) || a.name.includes("."));
+      attrs = Array.from(node.attributes).filter((a) => (a.name.startsWith("$") || a.name.startsWith("st-")) && !["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"].includes(a.name) || a.name.includes(".") || !a.name.startsWith("$") && !a.name.startsWith("st-") && !a.name.startsWith(".") && !a.name.startsWith("on") && a.name !== "bind" && a.value.includes("{#"));
     }
     if (node._thisObj && scanObj.thisObj && node._thisObj !== scanObj.thisObj) node._thisObj.parent = scanObj.thisObj;
     if (!node._thisObj) node._thisObj = scanObj.thisObj || null;
@@ -567,10 +620,7 @@
           tpl = node.textContent;
           node.textContent = "";
         }
-        if (tpl) {
-          tpl = _translate(tpl);
-          _initBinding({ node, attr: realAttrName, tpl, exp });
-        }
+        if (tpl) _initBinding({ node, attr: realAttrName, tpl, exp });
       }
     });
     if (node._hasOnLoad || node._componentInitialized) Promise.resolve().then(() => node.dispatchEvent(new Event("load", { bubbles: false })));
@@ -579,22 +629,18 @@
   }
   const _scanTree = (node, scanObj = {}) => {
     if (node.nodeType === 3) {
+      if (node._bindings) {
+        node._states = /* @__PURE__ */ new Set();
+        node._bindings.forEach((binding) => _updateBinding({ node, ...binding }));
+        return;
+      }
       if (node._stTranslated) return;
-      const translated = _translate(node.textContent);
-      if (translated !== node.textContent) node.textContent = translated;
+      if (node.textContent.includes("{#")) _initBinding({ node, attr: "text", tpl: node.textContent, exp: 0 });
       node._stTranslated = true;
       return;
     }
     if (node.nodeType !== 1) return;
-    if (!node._stTranslated) {
-      Array.from(node.attributes).forEach((attr) => {
-        if (!attr.name.startsWith("$") && !attr.name.startsWith("st-") && !attr.name.startsWith(".")) {
-          const translated = _translate(attr.value);
-          if (translated !== attr.value) attr.value = translated;
-        }
-      });
-      node._stTranslated = true;
-    }
+    if (!node._stTranslated) node._stTranslated = true;
     if (node.tagName !== "TEMPLATE" && (node.hasAttribute("$if") || node.hasAttribute("$each") || node.hasAttribute("st-if") || node.hasAttribute("st-each") || node.hasAttribute("$$if") || node.hasAttribute("$$each") || node.hasAttribute("st-st-if") || node.hasAttribute("st-st-each"))) {
       const template = document.createElement("TEMPLATE");
       const attrs = Array.from(node.attributes).filter((attr) => ["$if", "$each", "st-if", "st-each", "$$if", "$$each", "st-st-if", "st-st-each"].includes(attr.name) || (node.hasAttribute("$each") || node.hasAttribute("st-each") || node.hasAttribute("$$each") || node.hasAttribute("st-st-each")) && ["as", "index"].includes(attr.name));
@@ -654,8 +700,8 @@
     nodes.forEach((child) => _scanTree(child, { thisObj: node._thisObj ?? scanObj.thisObj, extendVars: { ...node._ref } }));
   };
   const _unbindTree = (node) => {
-    if (node.nodeType !== 1) return;
-    if (node._hasOnUnload) node.dispatchEvent(new Event("unload", { bubbles: false }));
+    if (node.nodeType !== 1 && !node._states) return;
+    if (node.nodeType === 1 && node._hasOnUnload) node.dispatchEvent(new Event("unload", { bubbles: false }));
     if (node._states) node._states.forEach((mappings) => {
       for (const [key, bindingSet] of mappings) {
         for (const binding of bindingSet) {
@@ -694,7 +740,9 @@
   exports2.$ = $;
   exports2.$$ = $$;
   exports2.Component = Component;
+  exports2.Cookie = Cookie;
   exports2.Hash = Hash;
+  exports2.Lang = Lang;
   exports2.LocalStorage = LocalStorage;
   exports2.NewState = NewState;
   exports2.SetTranslator = SetTranslator;
