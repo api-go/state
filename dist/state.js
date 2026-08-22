@@ -180,21 +180,7 @@
   if (Cookie.language === void 0 && typeof navigator !== "undefined") {
     Cookie.language = ((_c = navigator.languages) == null ? void 0 : _c[0]) || navigator.language || "en-US";
   }
-  const State = NewState({
-    exitBlocks: 0
-  });
-  State._dirtySources = /* @__PURE__ */ new Set();
-  State.setDirtySource = (source, dirty) => {
-    if (dirty) State._dirtySources.add(String(source));
-    else State._dirtySources.delete(String(source));
-    State.exitBlocks = State._dirtySources.size;
-  };
-  if (typeof window !== "undefined") window.addEventListener("beforeunload", (event) => {
-    if (State.exitBlocks > 0) {
-      event.preventDefault();
-      event.returnValue = "";
-    }
-  });
+  const State = NewState({});
   globalThis.Hash = Hash;
   globalThis.LocalStorage = LocalStorage;
   globalThis.Cookie = Cookie;

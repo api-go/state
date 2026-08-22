@@ -54,9 +54,7 @@ if (Cookie.language === undefined && typeof navigator !== 'undefined') {
     Cookie.language = navigator.languages?.[0] || navigator.language || 'en-US'
 }
 
-export const State = NewState({
-    exitBlocks: 0
-});
+export const State = NewState({});
 
 // 全局挂载
 globalThis.Hash = Hash;
