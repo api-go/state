@@ -214,24 +214,35 @@
   }
   const _components = /* @__PURE__ */ new Map();
   const _pendingTemplates = [];
-  globalThis.__eventRegistry || (globalThis.__eventRegistry = /* @__PURE__ */ new WeakMap());
-  globalThis.__nodeKeys || (globalThis.__nodeKeys = /* @__PURE__ */ new WeakMap());
-  globalThis.__nodeRegistry || (globalThis.__nodeRegistry = /* @__PURE__ */ new Map());
-  globalThis.__nodeSequence || (globalThis.__nodeSequence = 0);
-  if (!(globalThis.__nodeRegistry instanceof Map)) globalThis.__nodeRegistry = /* @__PURE__ */ new Map();
+  const __eventRegistry = /* @__PURE__ */ new WeakMap();
+  const __nodeKeys = /* @__PURE__ */ new WeakMap();
+  const __nodeRegistry = /* @__PURE__ */ new Map();
+  let __nodeSequence = 0;
   const _registerNodeEvent = (node, eventName) => {
-    let nodeKey = globalThis.__nodeKeys.get(node);
+    let nodeKey = __nodeKeys.get(node);
     if (!nodeKey) {
-      nodeKey = (++globalThis.__nodeSequence).toString(36);
-      globalThis.__nodeKeys.set(node, nodeKey);
-      globalThis.__nodeRegistry.set(nodeKey, typeof WeakRef === "function" ? new WeakRef(node) : node);
+      nodeKey = (++__nodeSequence).toString(36);
+      __nodeKeys.set(node, nodeKey);
+      __nodeRegistry.set(nodeKey, typeof WeakRef === "function" ? new WeakRef(node) : node);
     }
-    let events = globalThis.__eventRegistry.get(node);
+    let events = __eventRegistry.get(node);
     if (!events) {
       events = /* @__PURE__ */ new Set();
-      globalThis.__eventRegistry.set(node, events);
+      __eventRegistry.set(node, events);
     }
     events.add(eventName);
+  };
+  globalThis.__eachEventedNodes = (callback, root = null) => {
+    if (typeof callback !== "function") return;
+    for (const [key, reference] of __nodeRegistry) {
+      const node = typeof (reference == null ? void 0 : reference.deref) === "function" ? reference.deref() : reference;
+      if (!node || !node.isConnected) {
+        __nodeRegistry.delete(key);
+        continue;
+      }
+      if (root && node !== root && !root.contains(node)) continue;
+      callback(node, __eventRegistry.get(node), key);
+    }
   };
   const Component = {
     getTemplate: (name) => document.querySelector(`template[component="${name.toUpperCase()}"]`),
