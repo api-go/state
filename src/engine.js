@@ -11,25 +11,37 @@ import { Lang, _runCode, _returnCode, setDisableRunCodeError } from './core.js';
 const _components = new Map();
 const _pendingTemplates = [];
 
-globalThis.__eventRegistry ||= new WeakMap();
-globalThis.__nodeKeys ||= new WeakMap();
-globalThis.__nodeRegistry ||= new Map();
-globalThis.__nodeSequence ||= 0;
-if (!(globalThis.__nodeRegistry instanceof Map)) globalThis.__nodeRegistry = new Map();
+const __eventRegistry = new WeakMap();
+const __nodeKeys = new WeakMap();
+const __nodeRegistry = new Map();
+let __nodeSequence = 0;
 
 const _registerNodeEvent = (node, eventName) => {
-	let nodeKey = globalThis.__nodeKeys.get(node);
+	let nodeKey = __nodeKeys.get(node);
 	if (!nodeKey) {
-		nodeKey = (++globalThis.__nodeSequence).toString(36);
-		globalThis.__nodeKeys.set(node, nodeKey);
-		globalThis.__nodeRegistry.set(nodeKey, typeof WeakRef === 'function' ? new WeakRef(node) : node);
+		nodeKey = (++__nodeSequence).toString(36);
+		__nodeKeys.set(node, nodeKey);
+		__nodeRegistry.set(nodeKey, typeof WeakRef === 'function' ? new WeakRef(node) : node);
 	}
-	let events = globalThis.__eventRegistry.get(node);
+	let events = __eventRegistry.get(node);
 	if (!events) {
 		events = new Set();
-		globalThis.__eventRegistry.set(node, events);
+		__eventRegistry.set(node, events);
 	}
 	events.add(eventName);
+};
+
+globalThis.__eachEventedNodes = (callback, root = null) => {
+	if (typeof callback !== 'function') return;
+	for (const [key, reference] of __nodeRegistry) {
+		const node = typeof reference?.deref === 'function' ? reference.deref() : reference;
+		if (!node || !node.isConnected) {
+			__nodeRegistry.delete(key);
+			continue;
+		}
+		if (root && node !== root && !root.contains(node)) continue;
+		callback(node, __eventRegistry.get(node), key);
+	}
 };
 
 export const Component = {
