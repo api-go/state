@@ -183,6 +183,18 @@
   const State = NewState({
     exitBlocks: 0
   });
+  State._dirtySources = /* @__PURE__ */ new Set();
+  State.setDirtySource = (source, dirty) => {
+    if (dirty) State._dirtySources.add(String(source));
+    else State._dirtySources.delete(String(source));
+    State.exitBlocks = State._dirtySources.size;
+  };
+  if (typeof window !== "undefined") window.addEventListener("beforeunload", (event) => {
+    if (State.exitBlocks > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
   globalThis.Hash = Hash;
   globalThis.LocalStorage = LocalStorage;
   globalThis.Cookie = Cookie;
@@ -216,6 +228,15 @@
   }
   const _components = /* @__PURE__ */ new Map();
   const _pendingTemplates = [];
+  globalThis.__eventRegistry || (globalThis.__eventRegistry = /* @__PURE__ */ new WeakMap());
+  const _registerNodeEvent = (node, eventName) => {
+    let events = globalThis.__eventRegistry.get(node);
+    if (!events) {
+      events = /* @__PURE__ */ new Set();
+      globalThis.__eventRegistry.set(node, events);
+    }
+    events.add(eventName);
+  };
   const Component = {
     getTemplate: (name) => document.querySelector(`template[component="${name.toUpperCase()}"]`),
     register: (name, setupFunc, templateNode = null, ...globalNodes) => {
@@ -600,6 +621,7 @@
         if (eventName === "update") node._hasOnUpdate = true;
         if (eventName === "load" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnLoad = true;
         if (eventName === "unload" && !["BODY", "IMG", "IFRAME"].includes(node.tagName)) node._hasOnUnload = true;
+        _registerNodeEvent(node, eventName);
         node.addEventListener(eventName, (e) => {
           const detailVars = e.detail && typeof e.detail === "object" && !Array.isArray(e.detail) ? e.detail : {};
           _runCode(tpl, { event: e, thisNode: node, ...detailVars }, scanObj.thisObj || node, node._ref || {});
@@ -607,7 +629,9 @@
       } else {
         if (realAttrName === "bind") {
           const isTextInput = ["INPUT", "TEXTAREA"].includes(node.tagName) && ["textarea", "text", "password", "email", "number", "search", "url", "tel"].includes(node.type || "text") || node.isContentEditable;
-          node.addEventListener(isTextInput ? "input" : "change", (e) => {
+          const bindEventName = isTextInput ? "input" : "change";
+          _registerNodeEvent(node, bindEventName);
+          node.addEventListener(bindEventName, (e) => {
             if (e.target !== node) return;
             let newVal = node.isContentEditable ? e.target.innerHTML : node.type === "checkbox" ? e.target.checked : node.type === "file" ? e.target.files : e.target.value ?? e.detail;
             _setNoWriteBack(node);
