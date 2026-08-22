@@ -12,8 +12,18 @@ const _components = new Map();
 const _pendingTemplates = [];
 
 globalThis.__eventRegistry ||= new WeakMap();
+globalThis.__nodeKeys ||= new WeakMap();
+globalThis.__nodeRegistry ||= new Map();
+globalThis.__nodeSequence ||= 0;
+if (!(globalThis.__nodeRegistry instanceof Map)) globalThis.__nodeRegistry = new Map();
 
 const _registerNodeEvent = (node, eventName) => {
+	let nodeKey = globalThis.__nodeKeys.get(node);
+	if (!nodeKey) {
+		nodeKey = (++globalThis.__nodeSequence).toString(36);
+		globalThis.__nodeKeys.set(node, nodeKey);
+		globalThis.__nodeRegistry.set(nodeKey, typeof WeakRef === 'function' ? new WeakRef(node) : node);
+	}
 	let events = globalThis.__eventRegistry.get(node);
 	if (!events) {
 		events = new Set();

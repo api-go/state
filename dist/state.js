@@ -229,7 +229,17 @@
   const _components = /* @__PURE__ */ new Map();
   const _pendingTemplates = [];
   globalThis.__eventRegistry || (globalThis.__eventRegistry = /* @__PURE__ */ new WeakMap());
+  globalThis.__nodeKeys || (globalThis.__nodeKeys = /* @__PURE__ */ new WeakMap());
+  globalThis.__nodeRegistry || (globalThis.__nodeRegistry = /* @__PURE__ */ new Map());
+  globalThis.__nodeSequence || (globalThis.__nodeSequence = 0);
+  if (!(globalThis.__nodeRegistry instanceof Map)) globalThis.__nodeRegistry = /* @__PURE__ */ new Map();
   const _registerNodeEvent = (node, eventName) => {
+    let nodeKey = globalThis.__nodeKeys.get(node);
+    if (!nodeKey) {
+      nodeKey = (++globalThis.__nodeSequence).toString(36);
+      globalThis.__nodeKeys.set(node, nodeKey);
+      globalThis.__nodeRegistry.set(nodeKey, typeof WeakRef === "function" ? new WeakRef(node) : node);
+    }
     let events = globalThis.__eventRegistry.get(node);
     if (!events) {
       events = /* @__PURE__ */ new Set();
