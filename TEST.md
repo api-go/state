@@ -1,7 +1,8 @@
 # State.js Performance Benchmark
 
 ## 测试环境
-- Playwright (Headless Chromium)
+- AI 交互验收：Codex 内置浏览器
+- 性能基准：标准 Playwright 环境（CI 或人工独立运行）
 - CPU: Host machine
 - 模拟规模: 1000 个列表项
 
