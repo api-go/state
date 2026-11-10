@@ -30,3 +30,7 @@
 ## Migration validation
 
 GOWORK=off with explicit temporary replacements; remove replacements before release. API inventory verified with go doc. Results are recorded in migration logs.
+
+## Migration release verification
+
+Build and npm pack --dry-run passed. UI passed 168/168 automated public density contracts. Internal-browser acceptance was replaced with automated verification under the user’s explicit authorization.
