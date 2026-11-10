@@ -1,6 +1,6 @@
 {
-  "name": "@apigo.cc/state",
-  "version": "1.0.28",
+  "name": "@api-go/state",
+  "version": "1.0.29",
   "type": "module",
   "main": "dist/state.js",
   "module": "dist/state.js",
@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "prebuild": "node ../.profile/scripts/sync-readme-versions.mjs",
+    "prebuild": "node ../.github/scripts/sync-readme-versions.mjs",
     "build": "vite build",
     "test": "playwright test",
     "pub": "node scripts/publish.js"
@@ -19,5 +19,9 @@
     "@rollup/plugin-terser": "^1.0.0",
     "terser": "^5.47.1",
     "vite": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/api-go/state.git"
   }
 }

@@ -26,3 +26,7 @@
 ### 3. DOM 绑定与更新
 - **机制**: 基于 MutationObserver 的自动生命周期管理。
 - **特性**: 节点插入 DOM 后自动扫描指令，移除后自动解绑依赖，无需手动维护生命周期。
+
+## Migration validation
+
+GOWORK=off with explicit temporary replacements; remove replacements before release. API inventory verified with go doc. Results are recorded in migration logs.

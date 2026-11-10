@@ -1,4 +1,4 @@
-# @apigo.cc/state - AI 逻辑操作说明书
+# @api-go/state - AI 逻辑操作说明书
 
 本框架基于原生 `Proxy` 和 `MutationObserver` 实现数据与 DOM 的原子级同步。本手册仅供 AI 构建、维护及驱动基于此引擎的应用。
 

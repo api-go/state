@@ -24,7 +24,7 @@ try {
   
   // npm 要求包名全小写，scope + name 强制 toLowerCase
   const baseName = (pkg.name.includes('/') ? pkg.name.split('/')[1] : pkg.name).toLowerCase();
-  pkg.name = `@apigo.cc/${baseName}`;
+  pkg.name = `@api-go/${baseName}`;
   pkg.version = version;
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
